@@ -11,15 +11,19 @@ async function run() {
     from: cssPath,
     base: path.join(__dirname, '..'),
     shouldRewriteUrls: true,
-    onDependency: (dep) => {
-      // console.log('Dependency:', dep);
-    },
+    onDependency: () => {},
   });
 
-  const scanner = new Scanner({
-    sources: [{ base: path.join(__dirname, '../app'), pattern: '**/*', negated: false }],
-  });
+  const sources = [
+    { base: path.join(__dirname, '../app'), pattern: '**/*', negated: false },
+  ];
 
+  const componentsDir = path.join(__dirname, '../components');
+  if (fs.existsSync(componentsDir)) {
+    sources.push({ base: componentsDir, pattern: '**/*', negated: false });
+  }
+
+  const scanner = new Scanner({ sources });
   const candidates = scanner.scan();
   console.log('Scanned candidates count:', candidates.length);
 
