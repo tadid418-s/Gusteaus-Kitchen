@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* ========================================================================== */
+/* CUSTOM GUSTEAU'S KITCHEN PARISIAN BISTRO STYLES & ANIMATIONS               */
+/* ========================================================================== */
+:root {
+  --bg-cream: #FAF6EE;
+  --text-charcoal: #2B2623;
+  --accent-copper: #B4693A;
+  --accent-herb: #5E8B5A;
+}
+
+body {
+  background-color: #FAF6EE !important;
+  color: #2B2623 !important;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes pulseNewBorder {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.5);
+    border-color: #2563EB;
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0);
+    border-color: #60A5FA;
+  }
+}
+
+@keyframes pulseReadyGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes flashRedAlert {
+  0%, 100% {
+    border-color: #EF4444;
+    background-color: rgba(254, 242, 242, 0.95);
+  }
+  50% {
+    border-color: #DC2626;
+    background-color: rgba(254, 202, 202, 0.95);
+  }
+}
+
+.animate-pulse-new {
+  animation: pulseNewBorder 2s ease-in-out infinite !important;
+}
+
+.animate-pulse-ready {
+  animation: pulseReadyGlow 2s ease-in-out infinite !important;
+}
+
+.animate-flash-red {
+  animation: flashRedAlert 1.2s ease-in-out infinite !important;
+}
+
+/* Custom scrollbars for clean kitchen view */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #E5DFD3;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #D4CABE;
+}

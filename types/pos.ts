@@ -1,5 +1,5 @@
 export type RoleMode = 'chef' | 'waiter';
-export type OrderStatus = 'new' | 'preparing' | 'ready' | 'served';
+export type OrderStatus = 'draft' | 'new' | 'preparing' | 'ready' | 'served';
 export type OrderType = 'dine-in' | 'takeaway';
 export type TableStatus = 'empty' | 'seated' | 'waiting' | 'ready' | 'pending';
 export type PaymentMethod = 'cash' | 'card' | 'telebirr';
@@ -19,6 +19,7 @@ export interface OrderItem {
   imageUrl: string;
   category: string;
   modifiers?: Modifier[];
+  specialRequest?: string;
 }
 
 export interface OrderTicket {
@@ -26,6 +27,7 @@ export interface OrderTicket {
   orderNumber: string;
   type: OrderType;
   tableNumber?: string;
+  tableId?: string;
   placedAt: number; // timestamp in ms
   startedAt?: number;
   readyAt?: number;
@@ -35,6 +37,7 @@ export interface OrderTicket {
   isOverdue?: boolean;
   isNewArrival?: boolean;
   paymentStatus: 'paid' | 'pending';
+  paymentMethod?: PaymentMethod;
   waiterName?: string;
   claimedBy?: string;
 }

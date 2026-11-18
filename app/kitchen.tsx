@@ -5,7 +5,9 @@ import {
   RoleMode,
   OrderTicket,
   MenuItem,
+  Modifier,
   PaymentMethod,
+  TableInfo,
 } from '../types/pos';
 import { sounds } from '../lib/sound';
 import { MENU_DATABASE, INITIAL_ORDERS, INITIAL_TABLES } from '../data/mock-data';
@@ -14,30 +16,41 @@ import { OrderCard } from '../components/kds/OrderCard';
 import { TableMapView } from '../components/pos/TableMapView';
 import { FoodiesMenuSection } from '../components/pos/FoodiesMenuSection';
 import { OrderDetailPanel } from '../components/pos/OrderDetailPanel';
+import { ModifierSheetModal } from '../components/pos/ModifierSheetModal';
+import { ReceiptModal } from '../components/pos/ReceiptModal';
 import { TopBar } from '../components/common/TopBar';
 import { LeftSidebar } from '../components/common/LeftSidebar';
 
 export default function KitchenDashboard() {
   // Current active mode (Chef vs Waiter)
-  const [role, setRole] = useState<RoleMode>('chef');
+  const [role, setRole] = useState<RoleMode>('waiter');
 
-  // Navigation tab for Waitstaff mode
-  const [waiterActiveTab, setWaiterActiveTab] = useState<'orders' | 'menu' | 'tables'>('orders');
+  // Navigation tab for Waitstaff mode: starts on 'tables' (Step 1: Choose Table)
+  const [waiterActiveTab, setWaiterActiveTab] = useState<'orders' | 'menu' | 'tables'>('tables');
 
   // Real-time Orders State
   const [orders, setOrders] = useState<OrderTicket[]>(INITIAL_ORDERS);
-  const [selectedOrderId, setSelectedOrderId] = useState<string>('ord-1');
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('ord-3');
 
   // Filter chips in Order Line
   const [orderFilter, setOrderFilter] = useState<'all' | 'dine-in' | 'takeaway' | 'ready'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Tables State
-  const [tables] = useState(INITIAL_TABLES);
-  const [selectedTableId, setSelectedTableId] = useState<string>('t16');
+  // Dynamic Tables State (synced with Orders lifecycle)
+  const [tables, setTables] = useState<TableInfo[]>(INITIAL_TABLES);
+  const [selectedTableId, setSelectedTableId] = useState<string>('t9');
 
   // Menu Category State
   const [selectedMenuCategory, setSelectedMenuCategory] = useState<string>('Pizza');
+
+  // Interactive Modifier Sheet state (opens when tapping a dish on Menu)
+  const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
+
+  // Printable Receipt Modal state
+  const [receiptModalState, setReceiptModalState] = useState<{
+    order: OrderTicket | null;
+    method: PaymentMethod;
+  }>({ order: null, method: 'cash' });
 
   // Connection Simulation (SignalR dot)
   const [isConnected, setIsConnected] = useState<boolean>(true);
@@ -77,12 +90,18 @@ export default function KitchenDashboard() {
 
   // Find currently selected order ticket
   const selectedOrder = useMemo(() => {
-    return orders.find((o) => o.id === selectedOrderId) || orders[0] || null;
+    return orders.find((o) => o.id === selectedOrderId) || null;
   }, [orders, selectedOrderId]);
+
+  // Live submitted orders (excludes waiter draft tickets not yet sent to kitchen)
+  const submittedOrders = useMemo(() => {
+    return orders.filter((o) => o.status !== 'draft');
+  }, [orders]);
 
   // Filtered orders list for Order Line & Kanban
   const filteredOrders = useMemo(() => {
-    return orders.filter((o) => {
+    const base = submittedOrders;
+    return base.filter((o) => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchNumber = o.orderNumber.toLowerCase().includes(q);
@@ -95,82 +114,286 @@ export default function KitchenDashboard() {
       if (orderFilter === 'ready') return o.status === 'ready';
       return true;
     });
-  }, [orders, searchQuery, orderFilter]);
+  }, [submittedOrders, searchQuery, orderFilter]);
+
+  // Sort Waitstaff Order Line so READY & SERVED (ready to pay) appear first
+  const waiterSortedOrders = useMemo(() => {
+    const priority: Record<string, number> = {
+      ready: 0,
+      served: 1,
+      preparing: 2,
+      new: 3,
+    };
+    return [...filteredOrders].sort(
+      (a, b) => (priority[a.status] ?? 4) - (priority[b.status] ?? 4)
+    );
+  }, [filteredOrders]);
 
   // Counts for top chip filters
   const counts = useMemo(() => {
     return {
-      all: orders.length,
-      dineIn: orders.filter((o) => o.type === 'dine-in').length,
-      takeaway: orders.filter((o) => o.type === 'takeaway').length,
-      ready: orders.filter((o) => o.status === 'ready').length,
-      preparing: orders.filter((o) => o.status === 'preparing').length,
-      new: orders.filter((o) => o.status === 'new').length,
+      all: submittedOrders.length,
+      dineIn: submittedOrders.filter((o) => o.type === 'dine-in').length,
+      takeaway: submittedOrders.filter((o) => o.type === 'takeaway').length,
+      ready: submittedOrders.filter((o) => o.status === 'ready').length,
+      preparing: submittedOrders.filter((o) => o.status === 'preparing').length,
+      new: submittedOrders.filter((o) => o.status === 'new').length,
     };
-  }, [orders]);
+  }, [submittedOrders]);
 
-  // Stage advancement (New -> Preparing -> Ready -> Served)
-  const handleAdvanceStage = (orderId: string) => {
-    setOrders((prev) =>
-      prev.map((ord) => {
-        if (ord.id !== orderId) return ord;
-        if (ord.status === 'new') {
-          showToast(`Started preparation on ${ord.orderNumber}`);
-          return { ...ord, status: 'preparing', startedAt: Date.now(), isNewArrival: false };
-        }
-        if (ord.status === 'preparing') {
-          sounds.playOrderReady();
-          showToast(`🛎️ ${ord.tableNumber || ord.orderNumber} is READY for service!`);
-          return { ...ord, status: 'ready', readyAt: Date.now() };
-        }
-        return ord;
+  // Helper: sync table status by orderId or tableNumber
+  const updateTableForOrder = (
+    order: OrderTicket,
+    newStatus: TableInfo['status'],
+    clearOrderLink = false
+  ) => {
+    setTables((prev) =>
+      prev.map((t) => {
+        const matches =
+          (order.tableId && t.id === order.tableId) ||
+          (order.tableNumber && t.label.toLowerCase() === order.tableNumber.toLowerCase()) ||
+          t.currentOrderId === order.id;
+        if (!matches) return t;
+        return {
+          ...t,
+          status: newStatus,
+          currentOrderId: clearOrderLink ? undefined : order.id,
+        };
       })
     );
   };
 
-  // Waiter claiming delivery
-  const handleClaimDelivery = (orderId: string) => {
-    setOrders((prev) =>
-      prev.map((ord) => {
-        if (ord.id !== orderId) return ord;
-        showToast(`Delivered & Claimed ${ord.tableNumber || ord.orderNumber}`);
-        return { ...ord, status: 'served', claimedBy: 'Sakib Mahamud' };
-      })
+  // STEP 1 (Waitstaff): Select a Table from Floor Plan
+  const handleSelectTable = (tableId: string) => {
+    setSelectedTableId(tableId);
+    const tableObj = tables.find((t) => t.id === tableId);
+    if (!tableObj) return;
+
+    // Check if table already has an active order (draft or live)
+    const existingOrder = orders.find(
+      (o) =>
+        o.id === tableObj.currentOrderId ||
+        (o.tableNumber?.toLowerCase() === tableObj.label.toLowerCase() &&
+          o.paymentStatus !== 'paid')
     );
+
+    if (existingOrder) {
+      setSelectedOrderId(existingOrder.id);
+      if (existingOrder.status === 'draft') {
+        setWaiterActiveTab('menu');
+        showToast(`Continuing draft order for ${tableObj.label}`);
+      } else if (existingOrder.status === 'ready' || existingOrder.status === 'served') {
+        setIsMobileDetailOpen(true);
+        showToast(
+          `${tableObj.label} (${existingOrder.orderNumber}) is ready for payment & receipt!`
+        );
+      } else {
+        setIsMobileDetailOpen(true);
+        showToast(`Viewing live order ${existingOrder.orderNumber} for ${tableObj.label}`);
+      }
+      return;
+    }
+
+    // Empty or Seated table with no order -> Create a new Draft Order and advance to Step 2 (Menu)
+    const newOrderId = `ord-draft-${Date.now()}`;
+    const randomNum = `#F0${Math.floor(Math.random() * 899) + 100}`;
+    const newDraft: OrderTicket = {
+      id: newOrderId,
+      orderNumber: randomNum,
+      type: 'dine-in',
+      tableId: tableObj.id,
+      tableNumber: tableObj.label,
+      placedAt: Date.now(),
+      status: 'draft',
+      items: [],
+      paymentStatus: 'pending',
+      waiterName: 'Sakib Mahamud',
+    };
+
+    setOrders((prev) => [newDraft, ...prev]);
+    setSelectedOrderId(newOrderId);
+    setTables((prev) =>
+      prev.map((t) =>
+        t.id === tableId ? { ...t, status: 'seated', currentOrderId: newOrderId } : t
+      )
+    );
+    setWaiterActiveTab('menu');
+    showToast(`Step 1 done: ${tableObj.label} selected! Tap dishes to customize & add.`);
   };
 
-  // Add Item from Menu (Waitstaff mode)
-  const handleAddItemToOrder = (menuItem: MenuItem) => {
-    if (!selectedOrder) return;
+  // Start a Takeaway Draft Order
+  const handleStartTakeawayOrder = () => {
+    const newOrderId = `ord-ta-${Date.now()}`;
+    const randomNum = `#T0${Math.floor(Math.random() * 899) + 100}`;
+    const newDraft: OrderTicket = {
+      id: newOrderId,
+      orderNumber: randomNum,
+      type: 'takeaway',
+      placedAt: Date.now(),
+      status: 'draft',
+      items: [],
+      paymentStatus: 'pending',
+      waiterName: 'Sakib Mahamud',
+    };
+
+    setOrders((prev) => [newDraft, ...prev]);
+    setSelectedOrderId(newOrderId);
+    setWaiterActiveTab('menu');
+    showToast(`Started Takeaway order ${randomNum} — tap dishes to customize & add.`);
+  };
+
+  // STEP 2 (Waitstaff): Tap Dish on Menu -> Open Interactive Customization Drawer
+  const handleSelectMenuDish = (menuItem: MenuItem) => {
+    // If no active order or current order is already paid/ready, ensure a table draft is selected
+    if (!selectedOrder || selectedOrder.paymentStatus === 'paid' || selectedOrder.status === 'ready' || selectedOrder.status === 'served') {
+      const currentTable = tables.find((t) => t.id === selectedTableId);
+      if (!currentTable || currentTable.status !== 'empty') {
+        setWaiterActiveTab('tables');
+        showToast('Please choose a Table first before adding dishes!');
+        return;
+      }
+      handleSelectTable(currentTable.id);
+    }
+    setCustomizingItem(menuItem);
+  };
+
+  // Confirm Add Customized Item from Modifier Sheet Drawer
+  const handleConfirmCustomizedItem = ({
+    menuItem,
+    quantity,
+    selectedModifiers,
+    specialRequest,
+    unitPrice,
+  }: {
+    menuItem: MenuItem;
+    quantity: number;
+    selectedModifiers: Modifier[];
+    specialRequest: string;
+    unitPrice: number;
+  }) => {
+    if (!selectedOrder) {
+      setCustomizingItem(null);
+      return;
+    }
+
+    const newItemId = `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     setOrders((prev) =>
       prev.map((ord) => {
         if (ord.id !== selectedOrder.id) return ord;
-        const existingItem = ord.items.find((i) => i.name === menuItem.name);
-        if (existingItem) {
-          return {
-            ...ord,
-            items: ord.items.map((i) =>
-              i.name === menuItem.name ? { ...i, quantity: i.quantity + 1 } : i
-            ),
-          };
-        }
         return {
           ...ord,
           items: [
             ...ord.items,
             {
-              id: `item-${Date.now()}`,
+              id: newItemId,
               name: menuItem.name,
-              quantity: 1,
-              price: menuItem.price,
+              quantity,
+              price: unitPrice,
               imageUrl: menuItem.imageUrl,
               category: menuItem.category,
+              modifiers: selectedModifiers.length > 0 ? selectedModifiers : undefined,
+              specialRequest: specialRequest || undefined,
             },
           ],
         };
       })
     );
-    showToast(`Added ${menuItem.name} to ${selectedOrder.tableNumber || selectedOrder.orderNumber}`);
+
+    setCustomizingItem(null);
+    showToast(
+      `Added ${quantity}x ${menuItem.name} to ${
+        selectedOrder.tableNumber || selectedOrder.orderNumber
+      }`
+    );
+  };
+
+  // STEP 3 (Waitstaff): Send Draft Order to Kitchen
+  const handleSubmitDraftOrder = (orderId: string) => {
+    const target = orders.find((o) => o.id === orderId);
+    if (!target || target.items.length === 0) return;
+
+    const updatedOrder: OrderTicket = {
+      ...target,
+      status: 'new',
+      placedAt: Date.now(),
+      isNewArrival: true,
+    };
+
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+    updateTableForOrder(updatedOrder, 'waiting');
+    sounds.playNewOrder();
+    showToast(
+      `🔥 Order ${updatedOrder.orderNumber} (${
+        updatedOrder.tableNumber || 'Takeaway'
+      }) sent to Kitchen!`
+    );
+  };
+
+  // Stage advancement by Chef (New -> Preparing -> Ready)
+  const handleAdvanceStage = (orderId: string) => {
+    const target = orders.find((o) => o.id === orderId);
+    if (!target) return;
+
+    if (target.status === 'new') {
+      const updated: OrderTicket = {
+        ...target,
+        status: 'preparing',
+        startedAt: Date.now(),
+        isNewArrival: false,
+      };
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      updateTableForOrder(updated, 'waiting');
+      showToast(`Chef started preparing ${target.orderNumber}`);
+    } else if (target.status === 'preparing') {
+      const updated: OrderTicket = {
+        ...target,
+        status: 'ready',
+        readyAt: Date.now(),
+      };
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      updateTableForOrder(updated, 'ready');
+      sounds.playOrderReady();
+      showToast(`🛎️ ${target.tableNumber || target.orderNumber} is READY! Waitstaff can now pay & print receipt.`);
+    }
+  };
+
+  // Waiter claiming delivery when Chef marks order Ready
+  const handleClaimDelivery = (orderId: string) => {
+    const target = orders.find((o) => o.id === orderId);
+    if (!target) return;
+
+    const updated: OrderTicket = {
+      ...target,
+      status: 'served',
+      claimedBy: 'Sakib Mahamud',
+    };
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+    updateTableForOrder(updated, 'pending');
+    setSelectedOrderId(orderId);
+    showToast(
+      `Delivered ${target.tableNumber || target.orderNumber}! Choose a payment method & print receipt.`
+    );
+  };
+
+  // STEP 4 (Waitstaff): Confirm Payment Method & Settle Order
+  const handleCompletePayment = (orderId: string, method: PaymentMethod) => {
+    const target = orders.find((o) => o.id === orderId);
+    if (!target) return;
+
+    const paidOrder: OrderTicket = {
+      ...target,
+      status: 'served',
+      paymentStatus: 'paid',
+      paymentMethod: method,
+    };
+
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? paidOrder : o)));
+    updateTableForOrder(paidOrder, 'empty', true);
+    showToast(
+      `✓ Payment for ${target.orderNumber} confirmed via ${method.toUpperCase()}!`
+    );
+    // Offer immediate receipt view
+    setReceiptModalState({ order: paidOrder, method });
   };
 
   // Update Item Quantity in Ticket
@@ -194,19 +417,23 @@ export default function KitchenDashboard() {
   const handleClearOrder = () => {
     if (!selectedOrder) return;
     if (confirm(`Remove ${selectedOrder.orderNumber}?`)) {
+      updateTableForOrder(selectedOrder, 'empty', true);
       setOrders((prev) => prev.filter((o) => o.id !== selectedOrder.id));
+      setSelectedOrderId('');
       showToast(`Removed order ${selectedOrder.orderNumber}`);
     }
   };
 
-  // Simulate incoming real-time ticket (Demonstrates SignalR instant arrival, Web Audio chime, pulse)
+  // Simulate incoming real-time ticket
   const handleSimulateNewOrder = () => {
-    const randomTable = `Table ${Math.floor(Math.random() * 20) + 1}`;
+    const emptyTable = tables.find((t) => t.status === 'empty');
+    const randomTable = emptyTable ? emptyTable.label : `Table ${Math.floor(Math.random() * 20) + 1}`;
     const randomNum = `#F0${Math.floor(Math.random() * 899) + 100}`;
     const newTicket: OrderTicket = {
       id: `ord-${Date.now()}`,
       orderNumber: randomNum,
       type: 'dine-in',
+      tableId: emptyTable?.id,
       tableNumber: randomTable,
       placedAt: Date.now(),
       status: 'new',
@@ -223,6 +450,7 @@ export default function KitchenDashboard() {
             'https://images.unsplash.com/photo-1572449043416-55f4685c9bb7?auto=format&fit=crop&w=400&q=80',
           category: 'Chef Signature',
           modifiers: [{ id: 'mod-rat-1', name: 'Extra Provençal Herbs', type: 'addition' }],
+          specialRequest: 'Serve piping hot with warm baguette',
         },
       ],
       notes: 'New live ticket placed via guest mobile ordering.',
@@ -230,6 +458,9 @@ export default function KitchenDashboard() {
 
     setOrders((prev) => [newTicket, ...prev]);
     setSelectedOrderId(newTicket.id);
+    if (emptyTable) {
+      updateTableForOrder(newTicket, 'waiting');
+    }
     sounds.playNewOrder();
     showToast(`🔔 New Order ${randomNum} for ${randomTable} received!`);
   };
@@ -239,9 +470,20 @@ export default function KitchenDashboard() {
     return ['All', 'Pizza', 'Steak', 'Pasta', 'Salad', 'Rice', 'Noodle'];
   }, []);
 
+  // Determine current Waitstaff workflow step for visual stepper
+  const activeWorkflowStep = useMemo(() => {
+    if (selectedOrder && (selectedOrder.status === 'ready' || selectedOrder.status === 'served')) {
+      return 3;
+    }
+    if (waiterActiveTab === 'menu' || selectedOrder?.status === 'draft') {
+      return 2;
+    }
+    return 1;
+  }, [waiterActiveTab, selectedOrder]);
+
   return (
     <div className="min-h-screen bg-[#FAF6EE] text-[#2B2623] flex flex-col antialiased selection:bg-[#B4693A]/20">
-      {/* OFFLINE BANNER (Section 6.1) */}
+      {/* OFFLINE BANNER */}
       {!isConnected && (
         <div
           role="status"
@@ -263,7 +505,14 @@ export default function KitchenDashboard() {
       {/* ACCESSIBLE TOP BAR */}
       <TopBar
         role={role}
-        onSetRole={setRole}
+        onSetRole={(nextRole) => {
+          setRole(nextRole);
+          if (nextRole === 'chef') {
+            // Focus first non-draft ticket for chef
+            const firstKitchenTicket = orders.find((o) => o.status !== 'draft');
+            if (firstKitchenTicket) setSelectedOrderId(firstKitchenTicket.id);
+          }
+        }}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         isConnected={isConnected}
@@ -274,7 +523,7 @@ export default function KitchenDashboard() {
         onSimulateOrder={handleSimulateNewOrder}
       />
 
-      {/* MAIN LAYOUT WRAPPER (Responsive 3-Column / Tablet Ergonomics) */}
+      {/* MAIN LAYOUT WRAPPER */}
       <div className="flex-1 max-w-[1680px] w-full mx-auto p-3 sm:p-5 flex gap-4 overflow-hidden">
         {/* LEFT SIDEBAR NAVIGATION */}
         <LeftSidebar
@@ -286,8 +535,12 @@ export default function KitchenDashboard() {
           onShowToast={showToast}
         />
 
-        {/* CENTER CONTENT REGION - MAIN LANDMARK (WCAG 2.2 AA) */}
-        <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto focus:outline-none">
+        {/* CENTER CONTENT REGION */}
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto focus:outline-none"
+        >
           {/* TOP FILTER CHIPS BAR */}
           <div className="flex items-center justify-between flex-wrap gap-3 bg-white/70 backdrop-blur-sm p-3 rounded-2xl border border-stone-200/70">
             <div
@@ -383,10 +636,14 @@ export default function KitchenDashboard() {
               <button
                 type="button"
                 onClick={() => setIsMobileDetailOpen(true)}
-                aria-label={`View selected ticket details for order ${selectedOrder?.orderNumber}`}
+                aria-label={`View selected ticket details for order ${selectedOrder?.orderNumber || ''}`}
                 className="lg:hidden px-3 py-1.5 rounded-full bg-[#2B2623] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-stone-400"
               >
-                <span>View Ticket ({selectedOrder?.orderNumber})</span>
+                <span>
+                  {selectedOrder
+                    ? `${selectedOrder.tableNumber || 'Takeaway'} (${selectedOrder.items.length})`
+                    : 'View Ticket'}
+                </span>
               </button>
             </div>
           </div>
@@ -430,7 +687,7 @@ export default function KitchenDashboard() {
 
                   {filteredOrders.filter((o) => o.status === 'new').length === 0 && (
                     <div className="p-8 text-center text-xs text-stone-600 bg-white/50 rounded-2xl border border-dashed border-stone-300">
-                      No new incoming tickets. Click &ldquo;Simulate Order&rdquo; above to test!
+                      No new incoming tickets. Orders placed by Waitstaff appear here instantly!
                     </div>
                   )}
                 </div>
@@ -521,20 +778,143 @@ export default function KitchenDashboard() {
               </section>
             </div>
           ) : (
-            /* WAITER MODE: DUAL VIEW (Order Line + Foodies Menu OR Table Map) */
+            /* WAITER MODE: GUIDED 3-STEP ORDERING + LIVE READY QUEUE */
             <div className="space-y-5">
-              {/* UPPER SECTION: ORDER LINE HORIZONTAL CAROUSEL */}
+              {/* 3-STEP WORKFLOW BAR */}
+              <div className="bg-white rounded-2xl p-2.5 border border-stone-200/80 shadow-xs flex items-center justify-between gap-2 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setWaiterActiveTab('tables')}
+                  className={`flex-1 min-w-[140px] flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                    waiterActiveTab === 'tables'
+                      ? 'bg-[#2B2623] text-white shadow-sm'
+                      : 'hover:bg-stone-100 text-stone-700'
+                  }`}
+                >
+                  <span
+                    className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${
+                      waiterActiveTab === 'tables'
+                        ? 'bg-[#B4693A] text-white'
+                        : 'bg-stone-200 text-stone-700'
+                    }`}
+                  >
+                    1
+                  </span>
+                  <div className="leading-tight">
+                    <span className="text-xs font-bold block">Choose Table</span>
+                    <span className="text-[10px] opacity-75">
+                      {selectedOrder?.tableNumber || 'Pick table'}
+                    </span>
+                  </div>
+                </button>
+
+                <span className="text-stone-300 font-bold" aria-hidden="true">
+                  &rarr;
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setWaiterActiveTab('menu')}
+                  className={`flex-1 min-w-[155px] flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                    waiterActiveTab === 'menu'
+                      ? 'bg-[#2B2623] text-white shadow-sm'
+                      : 'hover:bg-stone-100 text-stone-700'
+                  }`}
+                >
+                  <span
+                    className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${
+                      waiterActiveTab === 'menu'
+                        ? 'bg-[#B4693A] text-white'
+                        : 'bg-stone-200 text-stone-700'
+                    }`}
+                  >
+                    2
+                  </span>
+                  <div className="leading-tight">
+                    <span className="text-xs font-bold block">Customize &amp; Order</span>
+                    <span className="text-[10px] opacity-75">Tap dish for modifiers</span>
+                  </div>
+                </button>
+
+                <span className="text-stone-300 font-bold" aria-hidden="true">
+                  &rarr;
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWaiterActiveTab('orders');
+                    const readyOrd = orders.find(
+                      (o) => o.status === 'ready' || o.status === 'served'
+                    );
+                    if (readyOrd) {
+                      setSelectedOrderId(readyOrd.id);
+                      setIsMobileDetailOpen(true);
+                    }
+                  }}
+                  className={`flex-1 min-w-[160px] flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                    waiterActiveTab === 'orders' || activeWorkflowStep === 3
+                      ? 'bg-emerald-700 text-white shadow-sm'
+                      : 'hover:bg-stone-100 text-stone-700'
+                  }`}
+                >
+                  <span
+                    className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${
+                      counts.ready > 0
+                        ? 'bg-emerald-400 text-emerald-950 animate-pulse'
+                        : 'bg-stone-200 text-stone-700'
+                    }`}
+                  >
+                    3
+                  </span>
+                  <div className="leading-tight">
+                    <span className="text-xs font-bold block">Ready, Pay &amp; Receipt</span>
+                    <span className="text-[10px] opacity-80">
+                      {counts.ready > 0
+                        ? `${counts.ready} Ready to Serve!`
+                        : 'Unlock when Chef marks Ready'}
+                    </span>
+                  </div>
+                </button>
+              </div>
+
+              {/* PRIMARY WORKSPACE: TABLE MAP OR FOODIES MENU */}
+              <section className="space-y-4">
+                {waiterActiveTab === 'tables' ? (
+                  <TableMapView
+                    tables={tables}
+                    selectedTableId={selectedTableId}
+                    onSelectTable={handleSelectTable}
+                    onStartTakeawayOrder={handleStartTakeawayOrder}
+                  />
+                ) : waiterActiveTab === 'menu' ? (
+                  <FoodiesMenuSection
+                    categories={categories}
+                    selectedCategory={selectedMenuCategory}
+                    onSelectCategory={setSelectedMenuCategory}
+                    menuItems={MENU_DATABASE}
+                    onSelectDish={handleSelectMenuDish}
+                    activeTableLabel={
+                      selectedOrder?.tableNumber ||
+                      (selectedOrder?.type === 'takeaway' ? 'Takeaway Order' : undefined)
+                    }
+                    onChangeTable={() => setWaiterActiveTab('tables')}
+                  />
+                ) : null}
+              </section>
+
+              {/* LIVE ORDER LINE (Always visible so Ready orders & Payment triggers are never missed) */}
               <section
                 aria-label="Order line queue"
                 className="bg-white rounded-3xl p-4 sm:p-5 border border-stone-200/80 shadow-sm"
               >
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                   <div>
                     <h2 className="text-lg sm:text-xl font-bold text-[#2B2623]">
-                      Live Order Line
+                      Live Order Line &amp; Kitchen Status
                     </h2>
                     <p className="text-xs text-stone-500">
-                      Tap tickets to inspect; claim ready food directly from the queue
+                      Orders marked <strong>Ready</strong> by the Chef appear first — tap to claim, choose payment &amp; print receipt
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -558,7 +938,10 @@ export default function KitchenDashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {filteredOrders.slice(0, 3).map((order) => (
+                  {(waiterActiveTab === 'orders'
+                    ? waiterSortedOrders
+                    : waiterSortedOrders.slice(0, 3)
+                  ).map((order) => (
                     <OrderCard
                       key={order.id}
                       order={order}
@@ -574,62 +957,6 @@ export default function KitchenDashboard() {
                   ))}
                 </div>
               </section>
-
-              {/* LOWER SECTION: SWITCH BETWEEN FOODIES MENU AND TABLE MAP */}
-              <section className="space-y-4">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setWaiterActiveTab('orders')}
-                      aria-pressed={waiterActiveTab !== 'tables'}
-                      className={`text-lg sm:text-xl font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] ${
-                        waiterActiveTab !== 'tables'
-                          ? 'text-[#2B2623] underline decoration-[#B4693A] decoration-4 underline-offset-8'
-                          : 'text-stone-400 hover:text-stone-600'
-                      }`}
-                    >
-                      Foodies Menu (POS)
-                    </button>
-                    <span className="text-stone-300" aria-hidden="true">|</span>
-                    <button
-                      type="button"
-                      onClick={() => setWaiterActiveTab('tables')}
-                      aria-pressed={waiterActiveTab === 'tables'}
-                      className={`text-lg sm:text-xl font-bold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] ${
-                        waiterActiveTab === 'tables'
-                          ? 'text-[#2B2623] underline decoration-[#B4693A] decoration-4 underline-offset-8'
-                          : 'text-stone-400 hover:text-stone-600'
-                      }`}
-                    >
-                      Dining Room Table Map
-                    </button>
-                  </div>
-                </div>
-
-                {waiterActiveTab === 'tables' ? (
-                  <TableMapView
-                    tables={tables}
-                    selectedTableId={selectedTableId}
-                    onSelectTable={(tableId) => {
-                      setSelectedTableId(tableId);
-                      const tableObj = tables.find((t) => t.id === tableId);
-                      if (tableObj?.currentOrderId) {
-                        setSelectedOrderId(tableObj.currentOrderId);
-                        setIsMobileDetailOpen(true);
-                      }
-                    }}
-                  />
-                ) : (
-                  <FoodiesMenuSection
-                    categories={categories}
-                    selectedCategory={selectedMenuCategory}
-                    onSelectCategory={setSelectedMenuCategory}
-                    menuItems={MENU_DATABASE}
-                    onAddItem={handleAddItemToOrder}
-                  />
-                )}
-              </section>
             </div>
           )}
         </main>
@@ -644,22 +971,21 @@ export default function KitchenDashboard() {
             role={role}
             onAdvanceStage={handleAdvanceStage}
             onClaimDelivery={handleClaimDelivery}
-            onPrintReceipt={() => showToast(`🖨️ Printing receipt for ${selectedOrder?.orderNumber}`)}
-            onCompletePayment={(method) => {
-              showToast(`Payment of ${selectedOrder?.orderNumber} confirmed via ${method.toUpperCase()}!`);
+            onSubmitDraftOrder={handleSubmitDraftOrder}
+            onOpenReceipt={(method) => {
               if (selectedOrder) {
-                setOrders((prev) =>
-                  prev.map((o) => (o.id === selectedOrder.id ? { ...o, paymentStatus: 'paid' } : o))
-                );
+                setReceiptModalState({ order: selectedOrder, method });
               }
             }}
+            onCompletePayment={handleCompletePayment}
             onUpdateQuantity={handleUpdateQuantity}
             onClearOrder={handleClearOrder}
+            onChangeTable={() => setWaiterActiveTab('tables')}
           />
         </aside>
       </div>
 
-      {/* TABLET / MOBILE BOTTOM SHEET MODAL (WCAG 2.2 AA Focus & Escape Trap) */}
+      {/* TABLET / MOBILE BOTTOM SHEET MODAL */}
       {isMobileDetailOpen && (
         <div
           role="dialog"
@@ -669,7 +995,7 @@ export default function KitchenDashboard() {
           onClick={() => setIsMobileDetailOpen(false)}
         >
           <div
-            className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[85vh] overflow-y-auto p-4 shadow-2xl animate-in slide-in-from-bottom"
+            className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[88vh] overflow-y-auto p-4 shadow-2xl animate-in slide-in-from-bottom"
             onClick={(e) => e.stopPropagation()}
           >
             <OrderDetailPanel
@@ -680,13 +1006,19 @@ export default function KitchenDashboard() {
                 handleAdvanceStage(id);
                 setIsMobileDetailOpen(false);
               }}
-              onClaimDelivery={(id) => {
-                handleClaimDelivery(id);
+              onClaimDelivery={handleClaimDelivery}
+              onSubmitDraftOrder={(id) => {
+                handleSubmitDraftOrder(id);
                 setIsMobileDetailOpen(false);
               }}
-              onPrintReceipt={() => showToast(`🖨️ Printing receipt for ${selectedOrder?.orderNumber}`)}
-              onCompletePayment={(method) => {
-                showToast(`Payment confirmed via ${method.toUpperCase()}!`);
+              onOpenReceipt={(method) => {
+                if (selectedOrder) {
+                  setIsMobileDetailOpen(false);
+                  setReceiptModalState({ order: selectedOrder, method });
+                }
+              }}
+              onCompletePayment={(id, method) => {
+                handleCompletePayment(id, method);
                 setIsMobileDetailOpen(false);
               }}
               onUpdateQuantity={handleUpdateQuantity}
@@ -694,10 +1026,35 @@ export default function KitchenDashboard() {
                 handleClearOrder();
                 setIsMobileDetailOpen(false);
               }}
+              onChangeTable={() => {
+                setIsMobileDetailOpen(false);
+                setWaiterActiveTab('tables');
+              }}
             />
           </div>
         </div>
       )}
+
+      {/* INTERACTIVE MODIFIER & SPECIAL REQUEST DRAWER */}
+      <ModifierSheetModal
+        item={customizingItem}
+        tableLabel={
+          selectedOrder?.tableNumber ||
+          (selectedOrder?.type === 'takeaway' ? 'Takeaway Order' : 'Selected Table')
+        }
+        onClose={() => setCustomizingItem(null)}
+        onConfirmAdd={handleConfirmCustomizedItem}
+      />
+
+      {/* PRINTABLE BISTRO RECEIPT MODAL */}
+      <ReceiptModal
+        order={receiptModalState.order}
+        paymentMethod={receiptModalState.method}
+        onClose={() => setReceiptModalState({ order: null, method: 'cash' })}
+        onConfirmPrint={() =>
+          showToast(`🖨️ Sent receipt for ${receiptModalState.order?.orderNumber} to printer!`)
+        }
+      />
 
       {/* GLOBAL TOAST NOTIFICATION */}
       {toastMessage && (

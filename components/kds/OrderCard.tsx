@@ -151,6 +151,17 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           ))
         )}
 
+        {order.items
+          .filter((item) => item.specialRequest)
+          .map((item) => (
+            <p
+              key={`${item.id}-req`}
+              className="text-xs italic text-amber-900 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200"
+            >
+              <span className="font-semibold not-italic">{item.name}:</span> &ldquo;{item.specialRequest}&rdquo;
+            </p>
+          ))}
+
         {order.notes && (
           <p className="text-xs italic text-stone-500 line-clamp-2 bg-stone-50 p-2 rounded-lg border border-stone-100">
             &ldquo;{order.notes}&rdquo;
@@ -202,6 +213,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               <Icons.PackageCheck />
               <span>{isUpdating ? 'Claiming...' : 'Claim Delivery'}</span>
             </button>
+          ) : order.paymentStatus === 'paid' ? (
+            <div className="w-full h-12 rounded-2xl bg-emerald-50 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 border border-emerald-200">
+              <Icons.Check />
+              <span>Paid ({(order.paymentMethod || 'cash').toUpperCase()}) &bull; Tap for Receipt</span>
+            </div>
+          ) : order.status === 'served' ? (
+            <div className="w-full h-12 rounded-2xl bg-red-50 text-red-700 font-bold text-xs flex items-center justify-center gap-1.5 border border-red-200">
+              <Icons.CreditCard />
+              <span>Served &bull; Tap to Pay &amp; Print Receipt</span>
+            </div>
           ) : (
             <div className="w-full h-12 rounded-2xl bg-stone-100 text-stone-600 font-medium text-xs flex items-center justify-center gap-1.5 border border-stone-200">
               <Icons.Clock />
