@@ -1,6 +1,10 @@
 'use client';
 
+import React, { Suspense } from 'react';
 import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
+import { CustomerDineInView } from './customer';
+import { TakeawayView } from './takeaway';
 
 const KitchenDashboard = dynamic(() => import('./kitchen'), {
   ssr: false,
@@ -20,6 +24,36 @@ const KitchenDashboard = dynamic(() => import('./kitchen'), {
   ),
 });
 
-export default function Home() {
+function MainRouter() {
+  const searchParams = useSearchParams();
+  const table = searchParams?.get('table');
+  const view = searchParams?.get('view');
+  const mode = searchParams?.get('mode');
+
+  // 1. DINE-IN CUSTOMER VIEW (Table QR scans e.g. ?table=12 or /customer)
+  if (table || view === 'customer') {
+    return <CustomerDineInView initialTable={table || '12'} />;
+  }
+
+  // 2. TAKEAWAY CUSTOMER VIEW (Online Takeaway e.g. /takeaway or ?view=takeaway)
+  if (view === 'takeaway' || mode === 'takeaway') {
+    return <TakeawayView />;
+  }
+
+  // 3. DEFAULT: KITCHEN DISPLAY SYSTEM & WAITSTAFF POS (the original working dashboard)
   return <KitchenDashboard />;
+}
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#FAF6EE] flex items-center justify-center">
+          <p className="text-sm font-bold text-[#2B2623]">Loading Gusteau&apos;s Kitchen...</p>
+        </div>
+      }
+    >
+      <MainRouter />
+    </Suspense>
+  );
 }
