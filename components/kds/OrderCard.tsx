@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, memo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { OrderTicket, RoleMode } from '../../types/pos';
 import { DishStatusPhoto } from '../ui/DishStatusPhoto';
 import { TimerBadge } from '../ui/TimerBadge';
@@ -63,8 +63,27 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
     }
   };
 
+  // Flatten and categorize modifiers
+  const { allAllergies, standardModifiers, orderSpecialRequests } = useMemo(() => {
+    const allMods = order.items.flatMap((item) => item.modifiers || []);
+    const allergies = allMods.filter((m) => m.type === 'allergy');
+    const standards = allMods.filter((m) => m.type !== 'allergy');
+    const reqs = order.items
+      .filter((item) => Boolean(item.specialRequest))
+      .map((item) => `${item.name}: ${item.specialRequest}`);
+
+    return {
+      allAllergies: allergies,
+      standardModifiers: standards,
+      orderSpecialRequests: reqs,
+    };
+  }, [order.items]);
+
   const hasModifiersOrNotes = Boolean(
-    order.items.some((i) => i.modifiers?.length || i.specialRequest) || order.notes
+    allAllergies.length > 0 ||
+      standardModifiers.length > 0 ||
+      orderSpecialRequests.length > 0 ||
+      order.notes
   );
 
   return (
@@ -75,16 +94,16 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
       aria-label={`Order ticket ${order.orderNumber} for ${order.tableNumber || 'Takeaway customer'}, status ${order.status}`}
       onKeyDown={handleKeyDown}
       onClick={onSelect}
-      className={`group relative flex flex-col justify-between h-full bistro-surface bistro-surface-hover rounded-2xl p-5 sm:p-6 cursor-pointer hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAF6EE] ${topAccentClass} ${
+      className={`group relative flex flex-col justify-between h-[340px] bistro-surface bistro-surface-hover rounded-2xl p-5 sm:p-5.5 cursor-pointer hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAF6EE] ${topAccentClass} ${
         isSelected ? 'ring-2 ring-[#B4693A] ring-offset-2 ring-offset-[#FAF6EE]' : ''
       }`}
     >
       <div>
-        {/* CARD TOP BAR (Consistent 32px height) */}
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2 flex-wrap">
+        {/* CARD TOP BAR (Fixed 28px height) */}
+        <div className="flex items-center justify-between gap-2.5 h-7 mb-3">
+          <div className="flex items-center gap-2 truncate">
             <span
-              className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide ${
+              className={`px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide truncate ${
                 order.type === 'takeaway'
                   ? 'bg-purple-50 text-purple-700 border border-purple-200/60'
                   : 'bg-[#FAF6EE] text-[#2B2623] border border-stone-200/50'
@@ -97,8 +116,8 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
           <TimerBadge placedAt={order.placedAt} />
         </div>
 
-        {/* HERO PHOTO + DISH TITLE (Consistent minimum spacing) */}
-        <div className="flex items-center gap-4 my-2 min-h-[72px]">
+        {/* HERO PHOTO + DISH TITLE (Fixed 68px height) */}
+        <div className="flex items-center gap-3.5 my-1 h-[68px]">
           <div className="relative flex-shrink-0">
             <DishStatusPhoto
               imageUrl={heroItem?.imageUrl}
@@ -110,7 +129,7 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
             {heroItem && (
               <span
                 aria-label={`Quantity: ${heroItem.quantity}`}
-                className="absolute -bottom-1 -right-1 bg-[#2B2623] text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-xs"
+                className="absolute -bottom-1 -right-1 bg-[#2B2623] text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-xs"
               >
                 x{heroItem.quantity}
               </span>
@@ -118,7 +137,10 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
           </div>
 
           <div className="flex-1 min-w-0 space-y-0.5">
-            <h4 className="text-lg font-extrabold text-[#2B2623] tracking-tight leading-snug line-clamp-2">
+            <h4
+              title={heroItem?.name}
+              className="text-base sm:text-lg font-extrabold text-[#2B2623] tracking-tight leading-snug line-clamp-2"
+            >
               {heroItem?.quantity}x {heroItem?.name}
             </h4>
             {order.items.length > 1 ? (
@@ -127,7 +149,7 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
               </p>
             ) : (
               <p className="text-xs text-stone-400 font-normal truncate">
-                {heroItem?.category || 'Single item order'}
+                {heroItem?.category || 'Single dish'}
               </p>
             )}
             {order.waiterName && (
@@ -136,68 +158,67 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
           </div>
         </div>
 
-        {/* MIDDLE CONTENT: MODIFIERS, SPECIAL REQUESTS & NOTES (Equalized vertical slot) */}
-        <div className="my-3 min-h-[64px] flex flex-col justify-start">
+        {/* STANDARDIZED MODIFIERS SLOT (Strictly 88px tall so 2nd additions never expand the card) */}
+        <div className="h-[88px] max-h-[88px] my-2.5 p-2.5 rounded-xl bg-stone-50/80 border border-stone-200/50 flex flex-col justify-start overflow-y-auto scrollbar-thin space-y-1.5">
           {hasModifiersOrNotes ? (
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap gap-1.5">
-                {order.items.flatMap((item) =>
-                  item.modifiers?.map((mod) =>
-                    mod.type === 'allergy' ? (
-                      <div
-                        key={mod.id}
-                        role="alert"
-                        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-500 text-white rounded-lg text-xs font-bold shadow-2xs"
-                      >
-                        <Icons.AlertTriangle />
-                        <span>{mod.name.toUpperCase()}</span>
-                      </div>
-                    ) : mod.type === 'removal' ? (
-                      <span
-                        key={mod.id}
-                        className="inline-block px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200/50 rounded-lg text-xs font-semibold"
-                      >
-                        ✕ {mod.name}
-                      </span>
-                    ) : (
-                      <span
-                        key={mod.id}
-                        className="inline-block px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/60 rounded-lg text-xs font-semibold"
-                      >
-                        + {mod.name}
-                      </span>
-                    )
-                  )
-                )}
-              </div>
+            <>
+              {/* Allergy alert badges first */}
+              {allAllergies.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {allAllergies.map((allergy) => (
+                    <span
+                      key={allergy.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500 text-white shadow-2xs"
+                    >
+                      <Icons.AlertTriangle />
+                      <span>{allergy.name.toUpperCase()}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
 
-              {order.items
-                .filter((item) => item.specialRequest)
-                .map((item) => (
-                  <p
-                    key={`${item.id}-req`}
-                    className="text-xs italic text-amber-900 bg-amber-50/70 border border-amber-200/40 px-3 py-1.5 rounded-lg leading-relaxed line-clamp-2"
-                  >
-                    <span className="font-semibold not-italic">{item.name}:</span> &ldquo;{item.specialRequest}&rdquo;
-                  </p>
-                ))}
+              {/* Additions & Removals chips */}
+              {standardModifiers.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {standardModifiers.map((mod) => (
+                    <span
+                      key={mod.id}
+                      className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold ${
+                        mod.type === 'removal'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200/50'
+                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                      }`}
+                    >
+                      {mod.type === 'removal' ? '✕' : '+'} {mod.name}
+                    </span>
+                  ))}
+                </div>
+              )}
 
-              {order.notes && (
-                <p className="text-xs italic text-stone-500 line-clamp-2 bg-[#FAF6EE] border border-stone-200/40 px-3 py-1.5 rounded-lg leading-relaxed">
-                  &ldquo;{order.notes}&rdquo;
+              {/* Special Requests */}
+              {orderSpecialRequests.length > 0 && (
+                <p className="text-[11px] italic text-amber-900 leading-tight truncate" title={orderSpecialRequests.join(', ')}>
+                  <span className="font-semibold not-italic">Req:</span> &ldquo;{orderSpecialRequests.join(', ')}&rdquo;
                 </p>
               )}
-            </div>
+
+              {/* General Order Notes */}
+              {order.notes && (
+                <p className="text-[11px] italic text-stone-500 leading-tight truncate" title={order.notes}>
+                  <span className="font-semibold not-italic">Note:</span> &ldquo;{order.notes}&rdquo;
+                </p>
+              )}
+            </>
           ) : (
-            <div className="h-full py-2.5 px-3 rounded-xl bg-stone-50/80 border border-dashed border-stone-200/60 text-[11px] text-stone-400 italic flex items-center">
-              Standard bistro preparation · No custom notes
+            <div className="h-full flex items-center justify-center text-[11px] text-stone-400 italic">
+              Standard bistro recipe · No custom notes
             </div>
           )}
         </div>
       </div>
 
       {/* FULL-WIDTH STANDARDIZED ACTION/STATUS BAR (Exact 56px height across every card) */}
-      <div className="mt-4 pt-1">
+      <div className="mt-2">
         {role === 'chef' ? (
           isNew ? (
             <button

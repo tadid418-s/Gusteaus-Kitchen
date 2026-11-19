@@ -663,7 +663,7 @@ export default function KitchenDashboard() {
                   </span>
                 </div>
 
-                <div className="space-y-5 overflow-y-auto">
+                <div className="space-y-4 overflow-y-auto flex-1 pr-1">
                   {filteredOrders
                     .filter((o) => o.status === 'new')
                     .map((order) => (
@@ -705,7 +705,7 @@ export default function KitchenDashboard() {
                   </span>
                 </div>
 
-                <div className="space-y-5 overflow-y-auto">
+                <div className="space-y-4 overflow-y-auto flex-1 pr-1">
                   {filteredOrders
                     .filter((o) => o.status === 'preparing')
                     .map((order) => (
@@ -747,7 +747,7 @@ export default function KitchenDashboard() {
                   </span>
                 </div>
 
-                <div className="space-y-5 overflow-y-auto">
+                <div className="space-y-4 overflow-y-auto flex-1 pr-1">
                   {filteredOrders
                     .filter((o) => o.status === 'ready')
                     .map((order) => (
