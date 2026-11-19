@@ -24,6 +24,16 @@ async function run() {
     sources.push({ base: componentsDir, pattern: '**/*.{ts,tsx,js,jsx}', negated: false });
   }
 
+  const dataDir = path.join(__dirname, '../data');
+  if (fs.existsSync(dataDir)) {
+    sources.push({ base: dataDir, pattern: '**/*.{ts,tsx,js,jsx}', negated: false });
+  }
+
+  const libDir = path.join(__dirname, '../lib');
+  if (fs.existsSync(libDir)) {
+    sources.push({ base: libDir, pattern: '**/*.{ts,tsx,js,jsx}', negated: false });
+  }
+
   const scanner = new Scanner({ sources });
   const candidates = scanner.scan();
   console.log('Scanned candidates count:', candidates.length);

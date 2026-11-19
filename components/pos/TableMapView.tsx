@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
 import { TableInfo } from '../../types/pos';
 import { Icons } from '../ui/Icons';
 
@@ -11,93 +11,100 @@ interface TableMapViewProps {
   onStartTakeawayOrder?: () => void;
 }
 
-export const TableMapView: React.FC<TableMapViewProps> = ({
+const TableMapViewComponent: React.FC<TableMapViewProps> = ({
   tables,
   selectedTableId,
   onSelectTable,
   onStartTakeawayOrder,
 }) => {
   return (
-    <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-stone-200/60">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div>
-          <span className="text-[11px] uppercase font-bold tracking-wider text-[#B4693A] block">
-            Step 1 &bull; Select Dining Table
+    <div className="bistro-surface rounded-2xl p-6 sm:p-8">
+      <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
+        <div className="space-y-1">
+          <span className="text-[11px] uppercase font-bold tracking-widest text-[#B4693A] block">
+            Step 01 · Dining Room
           </span>
-          <h3 className="text-xl font-bold text-[#2B2623]">Floor Plan &amp; Table Status</h3>
-          <p className="text-xs text-stone-500">
-            Tap an empty/seated table to take a new order, or tap a green Ready table to serve &amp; pay
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-[#2B2623] tracking-tight">
+            Where are your guests seated?
+          </h2>
+          <p className="text-sm text-stone-500 font-normal leading-relaxed">
+            Pick an open table to start a fresh ticket, or tap a glowing green table to serve and settle the bill.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {onStartTakeawayOrder && (
-            <button
-              type="button"
-              onClick={onStartTakeawayOrder}
-              className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors min-h-[44px]"
-            >
-              <Icons.Plus />
-              <span>New Takeaway Order</span>
-            </button>
-          )}
-        </div>
+        {onStartTakeawayOrder && (
+          <button
+            type="button"
+            onClick={onStartTakeawayOrder}
+            className="px-5 py-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/60 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all duration-200 ease-in-out hover:-translate-y-0.5 min-h-[46px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] focus-visible:ring-offset-2"
+          >
+            <Icons.Plus />
+            <span>Counter Takeaway</span>
+          </button>
+        )}
       </div>
 
-      {/* Legend */}
+      {/* Modern Status Legend (lighter tones) */}
       <div
-        className="flex items-center gap-4 text-xs flex-wrap mb-4 pb-3 border-b border-stone-100"
+        className="flex items-center gap-5 text-xs text-stone-500 flex-wrap mb-7 pb-5 border-b border-stone-100"
         aria-label="Floor plan color legend"
       >
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-stone-300" /> Empty (Start Order)
+        <span className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-stone-300" /> Open
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-blue-500" /> Seated / Ordering
+        <span className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-sky-400" /> Seated
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-amber-400" /> Cooking in Kitchen
+        <span className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-300" /> On the Fire
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" /> Ready to Serve &amp; Pay
+        <span className="flex items-center gap-2 font-semibold text-emerald-700">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" /> Ready to Serve
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-red-500" /> Bill Pending
+        <span className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-400" /> Check Pending
         </span>
       </div>
 
+      {/* ASYMMETRIC BENTO FLOOR GRID (Large group tables span 2 columns) */}
       <div
-        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"
+        className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-5"
         role="region"
         aria-label="Dining room tables"
       >
         {tables.map((table) => {
-          let bgClass = 'bg-stone-100 text-stone-600 border-stone-200 hover:border-stone-400';
+          let surfaceClass = 'bg-white text-stone-700 border border-stone-200/60 hover:bg-[#FAF6EE]';
+          let pillClass = 'bg-[#FAF6EE] text-stone-500 border border-stone-200/50';
           let pulseClass = '';
 
           if (table.status === 'seated') {
-            bgClass = 'bg-blue-50 text-blue-800 border-blue-300 hover:border-blue-500';
+            surfaceClass = 'bg-sky-50/70 text-sky-950 border border-sky-200/60 hover:bg-sky-100/70';
+            pillClass = 'bg-white text-sky-700 border border-sky-200/60';
           } else if (table.status === 'waiting') {
-            bgClass = 'bg-amber-50 text-amber-800 border-amber-300 hover:border-amber-500';
+            surfaceClass = 'bg-amber-50/70 text-amber-950 border border-amber-200/60 hover:bg-amber-100/70';
+            pillClass = 'bg-white text-amber-800 border border-amber-200/60';
           } else if (table.status === 'ready') {
-            bgClass = 'bg-emerald-100 text-emerald-900 border-emerald-400 hover:border-emerald-600';
-            pulseClass = 'animate-pulse-ready ring-4 ring-emerald-300/60';
+            surfaceClass = 'bg-emerald-50/80 text-emerald-950 border border-emerald-200/60 hover:bg-emerald-100/80';
+            pillClass = 'bg-emerald-500 text-white shadow-2xs';
+            pulseClass = 'animate-pulse-ready';
           } else if (table.status === 'pending') {
-            bgClass = 'bg-red-50 text-red-800 border-red-300 hover:border-red-500';
+            surfaceClass = 'bg-rose-50/70 text-rose-950 border border-rose-200/60 hover:bg-rose-100/70';
+            pillClass = 'bg-white text-rose-700 border border-rose-200/60';
           }
 
           const isSelected = selectedTableId === table.id;
+          const isLargeTable = table.seats >= 6;
 
           const statusText =
             table.status === 'empty'
-              ? 'Tap to Order'
+              ? 'Open'
               : table.status === 'seated'
               ? 'Ordering'
               : table.status === 'waiting'
               ? 'Cooking'
               : table.status === 'ready'
-              ? 'Serve & Pay'
-              : 'Payment Pending';
+              ? 'Ready to Serve'
+              : 'Settle Bill';
 
           return (
             <button
@@ -106,30 +113,30 @@ export const TableMapView: React.FC<TableMapViewProps> = ({
               onClick={() => onSelectTable(table.id)}
               aria-label={`${table.label}, ${table.seats} seats, status: ${statusText}`}
               aria-pressed={isSelected}
-              className={`min-h-[115px] rounded-2xl p-3 border-2 flex flex-col justify-between items-center text-center transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#B4693A] ${bgClass} ${pulseClass} ${
-                isSelected ? 'ring-4 ring-[#B4693A] scale-105 shadow-md' : 'hover:scale-[1.02]'
-              }`}
+              className={`min-h-[120px] rounded-2xl p-4 sm:p-5 flex flex-col justify-between items-start text-left transition-all duration-200 ease-in-out cursor-pointer hover:-translate-y-0.5 shadow-2xs hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] focus-visible:ring-offset-2 ${surfaceClass} ${pulseClass} ${
+                isLargeTable ? 'col-span-2' : 'col-span-1'
+              } ${isSelected ? 'ring-2 ring-[#B4693A] ring-offset-2 ring-offset-white' : ''}`}
             >
               <div className="flex items-center justify-between w-full">
-                <span className="text-[10px] uppercase font-bold tracking-wider opacity-75">
-                  {table.seats} Seats
+                <span className="text-[11px] font-medium opacity-65">
+                  {isLargeTable ? `Banquet · ${table.seats} seats` : `${table.seats} seats`}
                 </span>
                 {table.status === 'ready' && (
                   <span
                     aria-hidden="true"
-                    className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"
+                    className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"
                   />
                 )}
               </div>
 
-              <div className="font-bold text-base sm:text-lg">{table.label}</div>
+              <div className="font-extrabold text-lg sm:text-xl tracking-tight my-1">
+                {table.label}
+              </div>
 
-              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/85 shadow-2xs">
-                {table.status === 'ready'
-                  ? '🛎️ Ready!'
-                  : table.status === 'pending'
-                  ? '💳 Pay Now'
-                  : statusText}
+              <span
+                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-2xs ${pillClass}`}
+              >
+                {statusText}
               </span>
             </button>
           );
@@ -138,3 +145,5 @@ export const TableMapView: React.FC<TableMapViewProps> = ({
     </div>
   );
 };
+
+export const TableMapView = memo(TableMapViewComponent);

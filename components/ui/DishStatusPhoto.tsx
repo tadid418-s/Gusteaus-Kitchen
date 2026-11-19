@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import Image from 'next/image';
 import { OrderStatus } from '../../types/pos';
 import { Icons } from './Icons';
@@ -13,7 +13,7 @@ interface DishStatusPhotoProps {
   isOverdue?: boolean;
 }
 
-export const DishStatusPhoto: React.FC<DishStatusPhotoProps> = ({
+const DishStatusPhotoComponent: React.FC<DishStatusPhotoProps> = ({
   imageUrl,
   name,
   status,
@@ -22,14 +22,14 @@ export const DishStatusPhoto: React.FC<DishStatusPhotoProps> = ({
 }) => {
   const [hasError, setHasError] = useState(false);
 
-  // Status Ring Color Tokens matching section 2 of doc
-  let ringColor = 'border-blue-500 ring-blue-100';
+  // Modern soft pastel status rings
+  let ringColor = 'border-sky-400 ring-sky-100';
   if (isOverdue) {
-    ringColor = 'border-red-500 ring-red-200 animate-pulse';
+    ringColor = 'border-rose-400 ring-rose-100 animate-pulse';
   } else if (status === 'preparing') {
-    ringColor = 'border-amber-500 ring-amber-100';
+    ringColor = 'border-amber-300 ring-amber-100';
   } else if (status === 'ready' || status === 'served') {
-    ringColor = 'border-emerald-500 ring-emerald-100';
+    ringColor = 'border-emerald-400 ring-emerald-100';
   }
 
   const dimensionClasses = {
@@ -47,7 +47,7 @@ export const DishStatusPhoto: React.FC<DishStatusPhotoProps> = ({
   return (
     <div className="relative inline-flex items-center justify-center flex-shrink-0">
       <div
-        className={`${dimensionClasses} relative rounded-full overflow-hidden border-2 p-0.5 ring-4 shadow-sm transition-all duration-300 bg-white ${ringColor}`}
+        className={`${dimensionClasses} relative rounded-full overflow-hidden border-2 p-0.5 ring-4 shadow-2xs transition-all duration-300 bg-white ${ringColor}`}
       >
         {!hasError && imageUrl ? (
           <div className="relative w-full h-full rounded-full overflow-hidden">
@@ -63,7 +63,7 @@ export const DishStatusPhoto: React.FC<DishStatusPhotoProps> = ({
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-stone-100 rounded-full">
             <Icons.PlateFallback
-              color={isOverdue ? '#DC2626' : status === 'preparing' ? '#D97706' : '#2563EB'}
+              color={isOverdue ? '#F43F5E' : status === 'preparing' ? '#F59E0B' : '#38BDF8'}
             />
           </div>
         )}
@@ -71,3 +71,5 @@ export const DishStatusPhoto: React.FC<DishStatusPhotoProps> = ({
     </div>
   );
 };
+
+export const DishStatusPhoto = memo(DishStatusPhotoComponent);

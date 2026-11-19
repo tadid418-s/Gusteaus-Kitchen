@@ -43,7 +43,7 @@ export default function KitchenDashboard() {
   // Menu Category State
   const [selectedMenuCategory, setSelectedMenuCategory] = useState<string>('Pizza');
 
-  // Interactive Modifier Sheet state (opens when tapping a dish on Menu)
+  // Interactive Modifier Sheet state
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
 
   // Printable Receipt Modal state
@@ -64,12 +64,10 @@ export default function KitchenDashboard() {
   // Tablet modal drawer visibility
   const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
 
-  // Sync sound manager enabled state
   useEffect(() => {
     sounds.enabled = soundEnabled;
   }, [soundEnabled]);
 
-  // Modal Escape key accessibility listener (WCAG 2.2 AA)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isMobileDetailOpen) {
@@ -80,7 +78,6 @@ export default function KitchenDashboard() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMobileDetailOpen]);
 
-  // Show auto-dismissing toast
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
@@ -88,20 +85,16 @@ export default function KitchenDashboard() {
     }, 3500);
   };
 
-  // Find currently selected order ticket
   const selectedOrder = useMemo(() => {
     return orders.find((o) => o.id === selectedOrderId) || null;
   }, [orders, selectedOrderId]);
 
-  // Live submitted orders (excludes waiter draft tickets not yet sent to kitchen)
   const submittedOrders = useMemo(() => {
     return orders.filter((o) => o.status !== 'draft');
   }, [orders]);
 
-  // Filtered orders list for Order Line & Kanban
   const filteredOrders = useMemo(() => {
-    const base = submittedOrders;
-    return base.filter((o) => {
+    return submittedOrders.filter((o) => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchNumber = o.orderNumber.toLowerCase().includes(q);
@@ -116,7 +109,6 @@ export default function KitchenDashboard() {
     });
   }, [submittedOrders, searchQuery, orderFilter]);
 
-  // Sort Waitstaff Order Line so READY & SERVED (ready to pay) appear first
   const waiterSortedOrders = useMemo(() => {
     const priority: Record<string, number> = {
       ready: 0,
@@ -129,7 +121,6 @@ export default function KitchenDashboard() {
     );
   }, [filteredOrders]);
 
-  // Counts for top chip filters
   const counts = useMemo(() => {
     return {
       all: submittedOrders.length,
@@ -141,7 +132,6 @@ export default function KitchenDashboard() {
     };
   }, [submittedOrders]);
 
-  // Helper: sync table status by orderId or tableNumber
   const updateTableForOrder = (
     order: OrderTicket,
     newStatus: TableInfo['status'],
@@ -169,7 +159,6 @@ export default function KitchenDashboard() {
     const tableObj = tables.find((t) => t.id === tableId);
     if (!tableObj) return;
 
-    // Check if table already has an active order (draft or live)
     const existingOrder = orders.find(
       (o) =>
         o.id === tableObj.currentOrderId ||
@@ -181,20 +170,17 @@ export default function KitchenDashboard() {
       setSelectedOrderId(existingOrder.id);
       if (existingOrder.status === 'draft') {
         setWaiterActiveTab('menu');
-        showToast(`Continuing draft order for ${tableObj.label}`);
+        showToast(`Back to ${tableObj.label}'s draft ticket.`);
       } else if (existingOrder.status === 'ready' || existingOrder.status === 'served') {
         setIsMobileDetailOpen(true);
-        showToast(
-          `${tableObj.label} (${existingOrder.orderNumber}) is ready for payment & receipt!`
-        );
+        showToast(`${tableObj.label} is ready to settle and print.`);
       } else {
         setIsMobileDetailOpen(true);
-        showToast(`Viewing live order ${existingOrder.orderNumber} for ${tableObj.label}`);
+        showToast(`Checking in on ${tableObj.label} (${existingOrder.orderNumber}).`);
       }
       return;
     }
 
-    // Empty or Seated table with no order -> Create a new Draft Order and advance to Step 2 (Menu)
     const newOrderId = `ord-draft-${Date.now()}`;
     const randomNum = `#F0${Math.floor(Math.random() * 899) + 100}`;
     const newDraft: OrderTicket = {
@@ -218,10 +204,9 @@ export default function KitchenDashboard() {
       )
     );
     setWaiterActiveTab('menu');
-    showToast(`Step 1 done: ${tableObj.label} selected! Tap dishes to customize & add.`);
+    showToast(`${tableObj.label} opened — tap any dish to customize.`);
   };
 
-  // Start a Takeaway Draft Order
   const handleStartTakeawayOrder = () => {
     const newOrderId = `ord-ta-${Date.now()}`;
     const randomNum = `#T0${Math.floor(Math.random() * 899) + 100}`;
@@ -239,17 +224,21 @@ export default function KitchenDashboard() {
     setOrders((prev) => [newDraft, ...prev]);
     setSelectedOrderId(newOrderId);
     setWaiterActiveTab('menu');
-    showToast(`Started Takeaway order ${randomNum} — tap dishes to customize & add.`);
+    showToast(`Counter takeaway ${randomNum} opened — pick dishes below.`);
   };
 
-  // STEP 2 (Waitstaff): Tap Dish on Menu -> Open Interactive Customization Drawer
+  // STEP 2 (Waitstaff): Tap Dish on Menu -> Open Customization Drawer
   const handleSelectMenuDish = (menuItem: MenuItem) => {
-    // If no active order or current order is already paid/ready, ensure a table draft is selected
-    if (!selectedOrder || selectedOrder.paymentStatus === 'paid' || selectedOrder.status === 'ready' || selectedOrder.status === 'served') {
+    if (
+      !selectedOrder ||
+      selectedOrder.paymentStatus === 'paid' ||
+      selectedOrder.status === 'ready' ||
+      selectedOrder.status === 'served'
+    ) {
       const currentTable = tables.find((t) => t.id === selectedTableId);
       if (!currentTable || currentTable.status !== 'empty') {
         setWaiterActiveTab('tables');
-        showToast('Please choose a Table first before adding dishes!');
+        showToast('Pick a table on the floor plan first.');
         return;
       }
       handleSelectTable(currentTable.id);
@@ -257,7 +246,6 @@ export default function KitchenDashboard() {
     setCustomizingItem(menuItem);
   };
 
-  // Confirm Add Customized Item from Modifier Sheet Drawer
   const handleConfirmCustomizedItem = ({
     menuItem,
     quantity,
@@ -301,9 +289,9 @@ export default function KitchenDashboard() {
 
     setCustomizingItem(null);
     showToast(
-      `Added ${quantity}x ${menuItem.name} to ${
+      `Added ${quantity}× ${menuItem.name} to ${
         selectedOrder.tableNumber || selectedOrder.orderNumber
-      }`
+      }.`
     );
   };
 
@@ -323,13 +311,13 @@ export default function KitchenDashboard() {
     updateTableForOrder(updatedOrder, 'waiting');
     sounds.playNewOrder();
     showToast(
-      `🔥 Order ${updatedOrder.orderNumber} (${
+      `Ticket ${updatedOrder.orderNumber} (${
         updatedOrder.tableNumber || 'Takeaway'
-      }) sent to Kitchen!`
+      }) fired to the kitchen.`
     );
   };
 
-  // Stage advancement by Chef (New -> Preparing -> Ready)
+  // Stage advancement by Chef
   const handleAdvanceStage = (orderId: string) => {
     const target = orders.find((o) => o.id === orderId);
     if (!target) return;
@@ -343,7 +331,7 @@ export default function KitchenDashboard() {
       };
       setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
       updateTableForOrder(updated, 'waiting');
-      showToast(`Chef started preparing ${target.orderNumber}`);
+      showToast(`Ticket ${target.orderNumber} is now on the fire.`);
     } else if (target.status === 'preparing') {
       const updated: OrderTicket = {
         ...target,
@@ -353,11 +341,13 @@ export default function KitchenDashboard() {
       setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
       updateTableForOrder(updated, 'ready');
       sounds.playOrderReady();
-      showToast(`🛎️ ${target.tableNumber || target.orderNumber} is READY! Waitstaff can now pay & print receipt.`);
+      showToast(
+        `${target.tableNumber || target.orderNumber} is hot on the pass! Runners notified.`
+      );
     }
   };
 
-  // Waiter claiming delivery when Chef marks order Ready
+  // Waiter claiming delivery
   const handleClaimDelivery = (orderId: string) => {
     const target = orders.find((o) => o.id === orderId);
     if (!target) return;
@@ -371,11 +361,11 @@ export default function KitchenDashboard() {
     updateTableForOrder(updated, 'pending');
     setSelectedOrderId(orderId);
     showToast(
-      `Delivered ${target.tableNumber || target.orderNumber}! Choose a payment method & print receipt.`
+      `Delivered to ${target.tableNumber || target.orderNumber}. Ready for payment & receipt.`
     );
   };
 
-  // STEP 4 (Waitstaff): Confirm Payment Method & Settle Order
+  // STEP 4 (Waitstaff): Confirm Payment & Open Receipt
   const handleCompletePayment = (orderId: string, method: PaymentMethod) => {
     const target = orders.find((o) => o.id === orderId);
     if (!target) return;
@@ -389,14 +379,10 @@ export default function KitchenDashboard() {
 
     setOrders((prev) => prev.map((o) => (o.id === orderId ? paidOrder : o)));
     updateTableForOrder(paidOrder, 'empty', true);
-    showToast(
-      `✓ Payment for ${target.orderNumber} confirmed via ${method.toUpperCase()}!`
-    );
-    // Offer immediate receipt view
+    showToast(`Settled ${target.orderNumber} via ${method.toUpperCase()}.`);
     setReceiptModalState({ order: paidOrder, method });
   };
 
-  // Update Item Quantity in Ticket
   const handleUpdateQuantity = (itemId: string, delta: number) => {
     if (!selectedOrder) return;
     setOrders((prev) =>
@@ -413,18 +399,16 @@ export default function KitchenDashboard() {
     );
   };
 
-  // Clear or cancel order
   const handleClearOrder = () => {
     if (!selectedOrder) return;
     if (confirm(`Remove ${selectedOrder.orderNumber}?`)) {
       updateTableForOrder(selectedOrder, 'empty', true);
       setOrders((prev) => prev.filter((o) => o.id !== selectedOrder.id));
       setSelectedOrderId('');
-      showToast(`Removed order ${selectedOrder.orderNumber}`);
+      showToast(`Cleared ticket ${selectedOrder.orderNumber}.`);
     }
   };
 
-  // Simulate incoming real-time ticket
   const handleSimulateNewOrder = () => {
     const emptyTable = tables.find((t) => t.status === 'empty');
     const randomTable = emptyTable ? emptyTable.label : `Table ${Math.floor(Math.random() * 20) + 1}`;
@@ -453,7 +437,7 @@ export default function KitchenDashboard() {
           specialRequest: 'Serve piping hot with warm baguette',
         },
       ],
-      notes: 'New live ticket placed via guest mobile ordering.',
+      notes: 'Fresh guest order from the dining room.',
     };
 
     setOrders((prev) => [newTicket, ...prev]);
@@ -462,15 +446,13 @@ export default function KitchenDashboard() {
       updateTableForOrder(newTicket, 'waiting');
     }
     sounds.playNewOrder();
-    showToast(`🔔 New Order ${randomNum} for ${randomTable} received!`);
+    showToast(`New ticket ${randomNum} arrived for ${randomTable}.`);
   };
 
-  // Categories list
   const categories = useMemo(() => {
     return ['All', 'Pizza', 'Steak', 'Pasta', 'Salad', 'Rice', 'Noodle'];
   }, []);
 
-  // Determine current Waitstaff workflow step for visual stepper
   const activeWorkflowStep = useMemo(() => {
     if (selectedOrder && (selectedOrder.status === 'ready' || selectedOrder.status === 'served')) {
       return 3;
@@ -482,33 +464,32 @@ export default function KitchenDashboard() {
   }, [waiterActiveTab, selectedOrder]);
 
   return (
-    <div className="min-h-screen bg-[#FAF6EE] text-[#2B2623] flex flex-col antialiased selection:bg-[#B4693A]/20">
+    <div className="min-h-screen text-[#2B2623] flex flex-col antialiased selection:bg-[#B4693A]/20">
       {/* OFFLINE BANNER */}
       {!isConnected && (
         <div
           role="status"
           aria-live="polite"
-          className="bg-red-600 text-white px-4 py-2 text-center text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+          className="bg-red-600 text-white px-6 py-2.5 text-center text-xs sm:text-sm font-semibold flex items-center justify-center gap-3 transition-all"
         >
           <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" aria-hidden="true" />
-          <span>Offline &bull; Reconnecting to Gusteau&apos;s SignalR Hub... Auto-retry running silently</span>
+          <span>Connection lost — quietly reconnecting to the kitchen hub...</span>
           <button
             type="button"
             onClick={() => setIsConnected(true)}
-            className="ml-3 underline font-bold hover:text-stone-100 cursor-pointer"
+            className="ml-2 underline font-bold hover:text-stone-100 cursor-pointer"
           >
-            Force Reconnect
+            Retry now
           </button>
         </div>
       )}
 
-      {/* ACCESSIBLE TOP BAR */}
+      {/* SOLID OPAQUE TOP BAR */}
       <TopBar
         role={role}
         onSetRole={(nextRole) => {
           setRole(nextRole);
           if (nextRole === 'chef') {
-            // Focus first non-draft ticket for chef
             const firstKitchenTicket = orders.find((o) => o.status !== 'draft');
             if (firstKitchenTicket) setSelectedOrderId(firstKitchenTicket.id);
           }
@@ -523,8 +504,8 @@ export default function KitchenDashboard() {
         onSimulateOrder={handleSimulateNewOrder}
       />
 
-      {/* MAIN LAYOUT WRAPPER */}
-      <div className="flex-1 max-w-[1680px] w-full mx-auto p-3 sm:p-5 flex gap-4 overflow-hidden">
+      {/* MAIN LAYOUT WRAPPER WITH GENEROUS BREATHING ROOM */}
+      <div className="flex-1 max-w-[1680px] w-full mx-auto p-4 sm:p-7 flex gap-6 overflow-hidden">
         {/* LEFT SIDEBAR NAVIGATION */}
         <LeftSidebar
           role={role}
@@ -539,31 +520,32 @@ export default function KitchenDashboard() {
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto focus:outline-none"
+          className="flex-1 flex flex-col gap-6 min-w-0 overflow-y-auto focus:outline-none pb-4"
         >
-          {/* TOP FILTER CHIPS BAR */}
-          <div className="flex items-center justify-between flex-wrap gap-3 bg-white/70 backdrop-blur-sm p-3 rounded-2xl border border-stone-200/70">
+          {/* SOLID OPAQUE FILTER BAR (zero glassmorphism) */}
+          <div className="bistro-surface rounded-2xl px-5 py-3.5 flex items-center justify-between flex-wrap gap-3">
             <div
-              className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1"
+              className="flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5"
               role="group"
               aria-label="Order filters"
             >
-              <span className="text-xs font-bold text-stone-400 uppercase tracking-wider mr-1">
-                Filter:
-              </span>
               <button
                 type="button"
                 onClick={() => setOrderFilter('all')}
                 aria-pressed={orderFilter === 'all'}
                 aria-label={`Show all ${counts.all} orders`}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2B2623] ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 ease-in-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] ${
                   orderFilter === 'all'
-                    ? 'bg-[#2B2623] text-white shadow-sm'
-                    : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-200'
+                    ? 'bg-[#2B2623] text-white shadow-xs'
+                    : 'bg-[#F4EFE6] text-stone-600 hover:bg-[#EAE2D4] hover:text-[#2B2623]'
                 }`}
               >
                 <span>All</span>
-                <span className="px-1.5 py-0.2 bg-stone-100 text-stone-700 rounded-full font-mono text-[11px]">
+                <span
+                  className={`px-1.5 py-0.5 rounded-full font-mono text-[11px] ${
+                    orderFilter === 'all' ? 'bg-white/15 text-white' : 'bg-white text-stone-600'
+                  }`}
+                >
                   {counts.all}
                 </span>
               </button>
@@ -573,14 +555,18 @@ export default function KitchenDashboard() {
                 onClick={() => setOrderFilter('dine-in')}
                 aria-pressed={orderFilter === 'dine-in'}
                 aria-label={`Show ${counts.dineIn} Dine In orders`}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2B2623] ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 ease-in-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] ${
                   orderFilter === 'dine-in'
-                    ? 'bg-[#2B2623] text-white shadow-sm'
-                    : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-200'
+                    ? 'bg-[#2B2623] text-white shadow-xs'
+                    : 'bg-[#F4EFE6] text-stone-600 hover:bg-[#EAE2D4] hover:text-[#2B2623]'
                 }`}
               >
                 <span>Dine In</span>
-                <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded-full font-mono text-[11px]">
+                <span
+                  className={`px-1.5 py-0.5 rounded-full font-mono text-[11px] ${
+                    orderFilter === 'dine-in' ? 'bg-white/15 text-white' : 'bg-white text-amber-800'
+                  }`}
+                >
                   {counts.dineIn}
                 </span>
               </button>
@@ -590,14 +576,20 @@ export default function KitchenDashboard() {
                 onClick={() => setOrderFilter('takeaway')}
                 aria-pressed={orderFilter === 'takeaway'}
                 aria-label={`Show ${counts.takeaway} Take Away orders`}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2B2623] ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 ease-in-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] ${
                   orderFilter === 'takeaway'
-                    ? 'bg-[#2B2623] text-white shadow-sm'
-                    : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-200'
+                    ? 'bg-[#2B2623] text-white shadow-xs'
+                    : 'bg-[#F4EFE6] text-stone-600 hover:bg-[#EAE2D4] hover:text-[#2B2623]'
                 }`}
               >
-                <span>Take Away</span>
-                <span className="px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded-full font-mono text-[11px]">
+                <span>Takeaway</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full font-mono text-[11px] ${
+                    orderFilter === 'takeaway'
+                      ? 'bg-white/15 text-white'
+                      : 'bg-white text-purple-800'
+                  }`}
+                >
                   {counts.takeaway}
                 </span>
               </button>
@@ -607,68 +599,71 @@ export default function KitchenDashboard() {
                 onClick={() => setOrderFilter('ready')}
                 aria-pressed={orderFilter === 'ready'}
                 aria-label={`Show ${counts.ready} Ready to Serve orders`}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2B2623] ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 ease-in-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] ${
                   orderFilter === 'ready'
-                    ? 'bg-[#2B2623] text-white shadow-sm'
-                    : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-200'
+                    ? 'bg-[#2B2623] text-white shadow-xs'
+                    : 'bg-[#F4EFE6] text-stone-600 hover:bg-[#EAE2D4] hover:text-[#2B2623]'
                 }`}
               >
-                <span>Ready to Serve</span>
-                <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-full font-mono text-[11px]">
+                <span>Ready</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full font-mono text-[11px] ${
+                    orderFilter === 'ready' ? 'bg-white/15 text-white' : 'bg-white text-emerald-700'
+                  }`}
+                >
                   {counts.ready}
                 </span>
               </button>
             </div>
 
-            {/* Quick Actions */}
-            <div className="flex items-center gap-2">
+            {/* Secondary Utilities (keeps strict 1-primary-button hierarchy) */}
+            <div className="flex items-center gap-2.5">
               <button
                 type="button"
                 onClick={handleSimulateNewOrder}
                 aria-label="Simulate incoming real-time ticket"
-                className="px-3 py-1.5 rounded-full bg-[#B4693A] hover:bg-[#9c572c] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#B4693A]/50"
+                className="px-4 py-2 rounded-xl bg-[#F4EFE6] hover:bg-[#EAE2D4] text-[#B4693A] text-xs font-bold flex items-center gap-1.5 transition-all duration-200 ease-in-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A]"
               >
                 <Icons.Plus />
-                <span>Simulate Order</span>
+                <span>Test Incoming Ticket</span>
               </button>
 
-              {/* Tablet detail drawer toggle button */}
               <button
                 type="button"
                 onClick={() => setIsMobileDetailOpen(true)}
                 aria-label={`View selected ticket details for order ${selectedOrder?.orderNumber || ''}`}
-                className="lg:hidden px-3 py-1.5 rounded-full bg-[#2B2623] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-stone-400"
+                className="lg:hidden px-4 py-2 rounded-xl bg-[#2B2623] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A]"
               >
                 <span>
                   {selectedOrder
                     ? `${selectedOrder.tableNumber || 'Takeaway'} (${selectedOrder.items.length})`
-                    : 'View Ticket'}
+                    : 'Open Ticket'}
                 </span>
               </button>
             </div>
           </div>
 
-          {/* CHEF MODE: 3-COLUMN KITCHEN KANBAN */}
+          {/* CHEF MODE: AIRY 3-COLUMN KITCHEN KANBAN */}
           {role === 'chef' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 flex-1">
-              {/* COLUMN 1: NEW / PENDING */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 flex-1">
+              {/* COLUMN 1: INCOMING */}
               <section
                 aria-label="New and pending tickets"
-                className="bg-stone-100/70 rounded-3xl p-4 flex flex-col gap-3 border border-stone-200/80"
+                className="bg-[#F2ECE1]/75 rounded-2xl p-5 flex flex-col gap-5"
               >
-                <div className="flex items-center justify-between pb-2 border-b border-stone-200">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-blue-500 animate-pulse" aria-hidden="true" />
-                    <h3 className="font-bold text-sm sm:text-base text-[#2B2623]">
-                      New / Pending Tickets
-                    </h3>
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" aria-hidden="true" />
+                    <h2 className="font-extrabold text-base text-[#2B2623] tracking-tight">
+                      Incoming
+                    </h2>
                   </div>
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                  <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-white text-sky-700 shadow-2xs">
                     {filteredOrders.filter((o) => o.status === 'new').length}
                   </span>
                 </div>
 
-                <div className="space-y-4 overflow-y-auto">
+                <div className="space-y-5 overflow-y-auto">
                   {filteredOrders
                     .filter((o) => o.status === 'new')
                     .map((order) => (
@@ -686,31 +681,31 @@ export default function KitchenDashboard() {
                     ))}
 
                   {filteredOrders.filter((o) => o.status === 'new').length === 0 && (
-                    <div className="p-8 text-center text-xs text-stone-600 bg-white/50 rounded-2xl border border-dashed border-stone-300">
-                      No new incoming tickets. Orders placed by Waitstaff appear here instantly!
+                    <div className="py-14 px-6 text-center text-sm text-stone-500 leading-relaxed bg-white/70 rounded-2xl">
+                      All caught up. Your kitchen orders will land here as soon as the dinner rush starts.
                     </div>
                   )}
                 </div>
               </section>
 
-              {/* COLUMN 2: PREPARING (AMBER) */}
+              {/* COLUMN 2: ON THE FIRE */}
               <section
                 aria-label="Actively cooking tickets"
-                className="bg-stone-100/70 rounded-3xl p-4 flex flex-col gap-3 border border-stone-200/80"
+                className="bg-[#F2ECE1]/75 rounded-2xl p-5 flex flex-col gap-5"
               >
-                <div className="flex items-center justify-between pb-2 border-b border-stone-200">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-amber-500" aria-hidden="true" />
-                    <h3 className="font-bold text-sm sm:text-base text-[#2B2623]">
-                      Actively Cooking
-                    </h3>
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" aria-hidden="true" />
+                    <h2 className="font-extrabold text-base text-[#2B2623] tracking-tight">
+                      On the Fire
+                    </h2>
                   </div>
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                  <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-white text-amber-800 shadow-2xs">
                     {filteredOrders.filter((o) => o.status === 'preparing').length}
                   </span>
                 </div>
 
-                <div className="space-y-4 overflow-y-auto">
+                <div className="space-y-5 overflow-y-auto">
                   {filteredOrders
                     .filter((o) => o.status === 'preparing')
                     .map((order) => (
@@ -728,31 +723,31 @@ export default function KitchenDashboard() {
                     ))}
 
                   {filteredOrders.filter((o) => o.status === 'preparing').length === 0 && (
-                    <div className="p-8 text-center text-xs text-stone-600 bg-white/50 rounded-2xl border border-dashed border-stone-300">
-                      No tickets currently in the cooking line.
+                    <div className="py-14 px-6 text-center text-sm text-stone-500 leading-relaxed bg-white/70 rounded-2xl">
+                      The burners are clear. Grab the next ticket from Incoming when you&apos;re ready.
                     </div>
                   )}
                 </div>
               </section>
 
-              {/* COLUMN 3: READY FOR PICKUP (GREEN) */}
+              {/* COLUMN 3: THE PASS (READY) */}
               <section
                 aria-label="Tickets ready for pickup or serving"
-                className="bg-stone-100/70 rounded-3xl p-4 flex flex-col gap-3 border border-stone-200/80"
+                className="bg-[#F2ECE1]/75 rounded-2xl p-5 flex flex-col gap-5"
               >
-                <div className="flex items-center justify-between pb-2 border-b border-stone-200">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-emerald-500" aria-hidden="true" />
-                    <h3 className="font-bold text-sm sm:text-base text-[#2B2623]">
-                      Ready for Pass / Pickup
-                    </h3>
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" aria-hidden="true" />
+                    <h2 className="font-extrabold text-base text-[#2B2623] tracking-tight">
+                      The Pass
+                    </h2>
                   </div>
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-white text-emerald-700 shadow-2xs">
                     {filteredOrders.filter((o) => o.status === 'ready').length}
                   </span>
                 </div>
 
-                <div className="space-y-4 overflow-y-auto">
+                <div className="space-y-5 overflow-y-auto">
                   {filteredOrders
                     .filter((o) => o.status === 'ready')
                     .map((order) => (
@@ -770,73 +765,73 @@ export default function KitchenDashboard() {
                     ))}
 
                   {filteredOrders.filter((o) => o.status === 'ready').length === 0 && (
-                    <div className="p-8 text-center text-xs text-stone-600 bg-white/50 rounded-2xl border border-dashed border-stone-300">
-                      Pass counter is clear.
+                    <div className="py-14 px-6 text-center text-sm text-stone-500 leading-relaxed bg-white/70 rounded-2xl">
+                      The pass is spotless—nothing waiting for runners.
                     </div>
                   )}
                 </div>
               </section>
             </div>
           ) : (
-            /* WAITER MODE: GUIDED 3-STEP ORDERING + LIVE READY QUEUE */
-            <div className="space-y-5">
+            /* WAITER MODE: GUIDED 3-STEP WORKSPACE + ASYMMETRIC LIVE PASS */
+            <div className="space-y-7">
               {/* 3-STEP WORKFLOW BAR */}
-              <div className="bg-white rounded-2xl p-2.5 border border-stone-200/80 shadow-xs flex items-center justify-between gap-2 overflow-x-auto">
+              <div className="bistro-surface rounded-2xl p-2.5 flex items-center justify-between gap-2 overflow-x-auto">
                 <button
                   type="button"
                   onClick={() => setWaiterActiveTab('tables')}
-                  className={`flex-1 min-w-[140px] flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                  className={`flex-1 min-w-[145px] flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ease-in-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] ${
                     waiterActiveTab === 'tables'
                       ? 'bg-[#2B2623] text-white shadow-sm'
-                      : 'hover:bg-stone-100 text-stone-700'
+                      : 'hover:bg-[#FAF6EE] text-stone-600'
                   }`}
                 >
                   <span
-                    className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${
+                    className={`w-7 h-7 rounded-lg text-xs font-extrabold flex items-center justify-center flex-shrink-0 ${
                       waiterActiveTab === 'tables'
                         ? 'bg-[#B4693A] text-white'
-                        : 'bg-stone-200 text-stone-700'
+                        : 'bg-[#F4EFE6] text-[#2B2623]'
                     }`}
                   >
                     1
                   </span>
                   <div className="leading-tight">
                     <span className="text-xs font-bold block">Choose Table</span>
-                    <span className="text-[10px] opacity-75">
-                      {selectedOrder?.tableNumber || 'Pick table'}
+                    <span className="text-[11px] opacity-70">
+                      {selectedOrder?.tableNumber || 'Dining floor'}
                     </span>
                   </div>
                 </button>
 
-                <span className="text-stone-300 font-bold" aria-hidden="true">
+                <span className="text-stone-300" aria-hidden="true">
                   &rarr;
                 </span>
 
                 <button
                   type="button"
                   onClick={() => setWaiterActiveTab('menu')}
-                  className={`flex-1 min-w-[155px] flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                  className={`flex-1 min-w-[160px] flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ease-in-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] ${
                     waiterActiveTab === 'menu'
                       ? 'bg-[#2B2623] text-white shadow-sm'
-                      : 'hover:bg-stone-100 text-stone-700'
+                      : 'hover:bg-[#FAF6EE] text-stone-600'
                   }`}
                 >
                   <span
-                    className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${
+                    className={`w-7 h-7 rounded-lg text-xs font-extrabold flex items-center justify-center flex-shrink-0 ${
                       waiterActiveTab === 'menu'
                         ? 'bg-[#B4693A] text-white'
-                        : 'bg-stone-200 text-stone-700'
+                        : 'bg-[#F4EFE6] text-[#2B2623]'
                     }`}
                   >
                     2
                   </span>
                   <div className="leading-tight">
                     <span className="text-xs font-bold block">Customize &amp; Order</span>
-                    <span className="text-[10px] opacity-75">Tap dish for modifiers</span>
+                    <span className="text-[11px] opacity-70">Modifiers &amp; notes</span>
                   </div>
                 </button>
 
-                <span className="text-stone-300 font-bold" aria-hidden="true">
+                <span className="text-stone-300" aria-hidden="true">
                   &rarr;
                 </span>
 
@@ -852,34 +847,32 @@ export default function KitchenDashboard() {
                       setIsMobileDetailOpen(true);
                     }
                   }}
-                  className={`flex-1 min-w-[160px] flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                  className={`flex-1 min-w-[165px] flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ease-in-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] ${
                     waiterActiveTab === 'orders' || activeWorkflowStep === 3
-                      ? 'bg-emerald-700 text-white shadow-sm'
-                      : 'hover:bg-stone-100 text-stone-700'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'hover:bg-[#FAF6EE] text-stone-600'
                   }`}
                 >
                   <span
-                    className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${
+                    className={`w-7 h-7 rounded-lg text-xs font-extrabold flex items-center justify-center flex-shrink-0 ${
                       counts.ready > 0
                         ? 'bg-emerald-400 text-emerald-950 animate-pulse'
-                        : 'bg-stone-200 text-stone-700'
+                        : 'bg-[#F4EFE6] text-[#2B2623]'
                     }`}
                   >
                     3
                   </span>
                   <div className="leading-tight">
-                    <span className="text-xs font-bold block">Ready, Pay &amp; Receipt</span>
-                    <span className="text-[10px] opacity-80">
-                      {counts.ready > 0
-                        ? `${counts.ready} Ready to Serve!`
-                        : 'Unlock when Chef marks Ready'}
+                    <span className="text-xs font-bold block">Serve, Pay &amp; Print</span>
+                    <span className="text-[11px] opacity-80">
+                      {counts.ready > 0 ? `${counts.ready} hot on pass` : 'Awaiting pass'}
                     </span>
                   </div>
                 </button>
               </div>
 
               {/* PRIMARY WORKSPACE: TABLE MAP OR FOODIES MENU */}
-              <section className="space-y-4">
+              <section className="space-y-5">
                 {waiterActiveTab === 'tables' ? (
                   <TableMapView
                     tables={tables}
@@ -903,26 +896,26 @@ export default function KitchenDashboard() {
                 ) : null}
               </section>
 
-              {/* LIVE ORDER LINE (Always visible so Ready orders & Payment triggers are never missed) */}
+              {/* LIVE PASS & ORDER LINE (Asymmetric Bento emphasis on first Ready ticket) */}
               <section
                 aria-label="Order line queue"
-                className="bg-white rounded-3xl p-4 sm:p-5 border border-stone-200/80 shadow-sm"
+                className="bistro-surface rounded-2xl p-6 sm:p-8"
               >
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-[#2B2623]">
-                      Live Order Line &amp; Kitchen Status
+                <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
+                  <div className="space-y-1">
+                    <h2 className="text-2xl font-extrabold text-[#2B2623] tracking-tight">
+                      Live Order Line
                     </h2>
-                    <p className="text-xs text-stone-500">
-                      Orders marked <strong>Ready</strong> by the Chef appear first — tap to claim, choose payment &amp; print receipt
+                    <p className="text-sm text-stone-500 leading-relaxed">
+                      Dishes ready on the pass rise to the top—tap to claim, choose payment, and print the check.
                     </p>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setOrderFilter('all')}
                       aria-label="View all orders in queue"
-                      className="w-8 h-8 rounded-full border border-stone-200 hover:bg-stone-50 flex items-center justify-center text-stone-600 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+                      className="w-10 h-10 rounded-xl bg-[#F4EFE6] hover:bg-[#EAE2D4] flex items-center justify-center text-stone-600 cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A]"
                     >
                       <Icons.ChevronLeft />
                     </button>
@@ -930,41 +923,53 @@ export default function KitchenDashboard() {
                       type="button"
                       onClick={() => setOrderFilter('ready')}
                       aria-label="View ready orders in queue"
-                      className="w-8 h-8 rounded-full border border-stone-200 hover:bg-stone-50 flex items-center justify-center text-stone-600 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+                      className="w-10 h-10 rounded-xl bg-[#F4EFE6] hover:bg-[#EAE2D4] flex items-center justify-center text-stone-600 cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A]"
                     >
                       <Icons.ChevronRight />
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {(waiterActiveTab === 'orders'
-                    ? waiterSortedOrders
-                    : waiterSortedOrders.slice(0, 3)
-                  ).map((order) => (
-                    <OrderCard
-                      key={order.id}
-                      order={order}
-                      role={role}
-                      isSelected={selectedOrderId === order.id}
-                      onSelect={() => {
-                        setSelectedOrderId(order.id);
-                        setIsMobileDetailOpen(true);
-                      }}
-                      onAdvanceStage={handleAdvanceStage}
-                      onClaimDelivery={handleClaimDelivery}
-                    />
-                  ))}
-                </div>
+                {waiterSortedOrders.length === 0 ? (
+                  <div className="py-16 px-8 text-center rounded-2xl bg-[#FAF6EE]">
+                    <p className="text-base font-bold text-[#2B2623]">
+                      Quiet floor right now.
+                    </p>
+                    <p className="text-sm text-stone-500 mt-1">
+                      Once you send a table&apos;s order to the kitchen, you&apos;ll track every plate here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {(waiterActiveTab === 'orders'
+                      ? waiterSortedOrders
+                      : waiterSortedOrders.slice(0, 3)
+                    ).map((order, idx) => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        role={role}
+                        featured={idx === 0 && order.status === 'ready'}
+                        isSelected={selectedOrderId === order.id}
+                        onSelect={() => {
+                          setSelectedOrderId(order.id);
+                          setIsMobileDetailOpen(true);
+                        }}
+                        onAdvanceStage={handleAdvanceStage}
+                        onClaimDelivery={handleClaimDelivery}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
           )}
         </main>
 
-        {/* RIGHT SIDEBAR: ORDER DETAIL & CHECKOUT PANEL (Desktop View) */}
+        {/* RIGHT SIDEBAR: ORDER DETAIL & CHECKOUT PANEL */}
         <aside
           aria-label="Order Inspector and Bill Details"
-          className="hidden lg:block w-[360px] xl:w-[400px] flex-shrink-0"
+          className="hidden lg:block w-[370px] xl:w-[410px] flex-shrink-0"
         >
           <OrderDetailPanel
             order={selectedOrder}
@@ -991,11 +996,11 @@ export default function KitchenDashboard() {
           role="dialog"
           aria-modal="true"
           aria-label="Order Details"
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 lg:hidden"
+          className="fixed inset-0 z-50 bg-[#2B2623]/45 flex items-end sm:items-center justify-center p-0 sm:p-5 lg:hidden"
           onClick={() => setIsMobileDetailOpen(false)}
         >
           <div
-            className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[88vh] overflow-y-auto p-4 shadow-2xl animate-in slide-in-from-bottom"
+            className="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[88vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <OrderDetailPanel
@@ -1052,7 +1057,7 @@ export default function KitchenDashboard() {
         paymentMethod={receiptModalState.method}
         onClose={() => setReceiptModalState({ order: null, method: 'cash' })}
         onConfirmPrint={() =>
-          showToast(`🖨️ Sent receipt for ${receiptModalState.order?.orderNumber} to printer!`)
+          showToast(`Receipt for ${receiptModalState.order?.orderNumber} sent to printer.`)
         }
       />
 
@@ -1061,9 +1066,9 @@ export default function KitchenDashboard() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#2B2623] text-white px-5 py-3 rounded-full text-sm font-semibold shadow-xl flex items-center gap-3 border border-stone-700 animate-in fade-in slide-in-from-bottom-2"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#2B2623] text-white px-6 py-3.5 rounded-xl text-sm font-semibold shadow-xl flex items-center gap-3"
         >
-          <span className="w-2.5 h-2.5 rounded-full bg-[#B4693A] animate-ping" aria-hidden="true" />
+          <span className="w-2 h-2 rounded-full bg-[#B4693A] animate-ping" aria-hidden="true" />
           <span>{toastMessage}</span>
         </div>
       )}

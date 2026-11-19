@@ -46,70 +46,71 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="receipt-modal-title"
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#2B2623]/45 flex items-center justify-center p-5"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
         {/* TOP HEADER */}
-        <div className="bg-[#2B2623] text-white px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="bg-[#2B2623] text-white px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <Icons.Print />
-            <h3 id="receipt-modal-title" className="font-bold text-base">
-              Guest Receipt Preview
+            <h3 id="receipt-modal-title" className="font-bold text-base tracking-tight">
+              Guest Receipt
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close receipt preview"
-            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center cursor-pointer"
+            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A]"
           >
             ✕
           </button>
         </div>
 
         {/* THERMAL RECEIPT PAPER */}
-        <div className="p-6 overflow-y-auto bg-[#FAF6EE]/60">
-          <div className="bg-white rounded-2xl p-6 border border-dashed border-stone-300 shadow-sm font-mono text-xs text-stone-800 space-y-4">
+        <div className="p-6 overflow-y-auto bg-[#FAF6EE]">
+          <div className="bg-white rounded-xl p-6 shadow-sm font-mono text-xs text-stone-700 space-y-5">
             {/* Bistro Brand Header */}
-            <div className="text-center border-b border-dashed border-stone-300 pb-4 space-y-1">
-              <div className="w-10 h-10 rounded-full bg-[#2B2623] text-white mx-auto flex items-center justify-center mb-2">
+            <div className="text-center border-b border-dashed border-stone-200 pb-5 space-y-1">
+              <div className="w-11 h-11 rounded-xl bg-[#2B2623] text-white mx-auto flex items-center justify-center mb-3">
                 <Icons.SpoonLogo />
               </div>
-              <div className="font-sans text-lg font-extrabold text-[#2B2623] tracking-tight">
+              <div className="font-sans text-xl font-extrabold text-[#2B2623] tracking-tight">
                 Gusteau&apos;s Kitchen
               </div>
-              <p className="text-[11px] text-stone-500">14 Rue de la Gastronomie, Paris</p>
-              <p className="text-[11px] text-stone-500">Tel: +251 11 555 0194</p>
+              <p className="text-[11px] text-stone-400">14 Rue de la Gastronomie, Paris</p>
+              <p className="text-[11px] text-stone-400">+251 11 555 0194</p>
             </div>
 
             {/* Meta info */}
-            <div className="grid grid-cols-2 gap-y-1 text-[11px] border-b border-dashed border-stone-300 pb-3">
-              <span className="text-stone-500">Order #:</span>
-              <span className="text-right font-bold">{order.orderNumber}</span>
+            <div className="grid grid-cols-2 gap-y-1.5 text-[11px] border-b border-dashed border-stone-200 pb-4">
+              <span className="text-stone-400">Order #</span>
+              <span className="text-right font-bold text-[#2B2623]">{order.orderNumber}</span>
 
-              <span className="text-stone-500">Service:</span>
-              <span className="text-right font-bold">
+              <span className="text-stone-400">Table</span>
+              <span className="text-right font-bold text-[#2B2623]">
                 {order.tableNumber || 'Takeaway Counter'}
               </span>
 
-              <span className="text-stone-500">Server:</span>
+              <span className="text-stone-400">Server</span>
               <span className="text-right">{order.waiterName || 'Sakib Mahamud'}</span>
 
-              <span className="text-stone-500">Date:</span>
+              <span className="text-stone-400">Date</span>
               <span className="text-right" suppressHydrationWarning>
-                {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {new Date().toLocaleDateString()}{' '}
+                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
 
             {/* Line Items */}
-            <div className="space-y-2.5 border-b border-dashed border-stone-300 pb-3">
+            <div className="space-y-3 border-b border-dashed border-stone-200 pb-4">
               {order.items.map((item) => (
-                <div key={item.id} className="space-y-0.5">
-                  <div className="flex justify-between font-semibold">
+                <div key={item.id} className="space-y-1">
+                  <div className="flex justify-between font-bold text-[#2B2623]">
                     <span>
                       {item.quantity}x {item.name}
                     </span>
@@ -121,7 +122,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                     </div>
                   )}
                   {item.specialRequest && (
-                    <div className="pl-3 text-[10px] italic text-stone-500">
+                    <div className="pl-3 text-[10px] italic text-stone-400">
                       Note: {item.specialRequest}
                     </div>
                   )}
@@ -130,22 +131,22 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </div>
 
             {/* Totals */}
-            <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between text-stone-600">
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between text-stone-500">
                 <span>Subtotal</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-stone-600">
+              <div className="flex justify-between text-stone-500">
                 <span>VAT / Tax (15%)</span>
                 <span>${tax.toFixed(2)}</span>
               </div>
               {donation > 0 && (
-                <div className="flex justify-between text-stone-500">
+                <div className="flex justify-between text-stone-400">
                   <span>Community Kitchen</span>
                   <span>${donation.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-base font-extrabold text-[#2B2623] pt-2 border-t border-stone-300">
+              <div className="flex justify-between text-base font-extrabold text-[#2B2623] pt-3 border-t border-stone-200">
                 <span>TOTAL</span>
                 <span>${total.toFixed(2)}</span>
               </div>
@@ -154,39 +155,39 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             {/* Payment Method Stamp */}
             <div className="pt-2 text-center">
               <div
-                className={`inline-block px-4 py-1.5 rounded-full text-xs font-bold tracking-wider border ${
+                className={`inline-block px-4 py-1.5 rounded-full text-xs font-bold tracking-wider ${
                   order.paymentStatus === 'paid'
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-400'
-                    : 'bg-amber-50 text-amber-800 border-amber-300'
+                    ? 'bg-emerald-50 text-emerald-800'
+                    : 'bg-amber-50 text-amber-800'
                 }`}
               >
                 {order.paymentStatus === 'paid'
-                  ? `✓ PAID VIA ${methodLabel}`
-                  : `PAYMENT METHOD: ${methodLabel}`}
+                  ? `✓ PAID · ${methodLabel}`
+                  : `METHOD · ${methodLabel}`}
               </div>
-              <p className="text-[10px] text-stone-400 mt-3 font-sans">
+              <p className="text-[11px] text-stone-400 mt-4 font-sans leading-relaxed">
                 Merci! Anyone can cook, but only the fearless can be great.
               </p>
             </div>
           </div>
         </div>
 
-        {/* ACTIONS */}
-        <div className="bg-white px-6 py-4 border-t border-stone-200 flex items-center gap-3">
+        {/* ACTIONS: Ghost Close + Single Primary Print */}
+        <div className="bg-white px-6 py-5 shadow-[0_-2px_12px_-4px_rgba(43,38,35,0.06)] flex items-center gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 h-14 rounded-2xl border border-stone-200 hover:bg-stone-50 text-stone-700 font-semibold text-sm cursor-pointer"
+            className="px-5 h-14 rounded-xl text-stone-500 hover:text-[#2B2623] hover:bg-[#F4EFE6] font-semibold text-sm cursor-pointer transition-colors duration-200"
           >
             Close
           </button>
           <button
             type="button"
             onClick={handlePrint}
-            className="flex-[1.5] h-14 rounded-2xl bg-[#2B2623] hover:bg-black text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+            className="flex-1 h-14 rounded-xl bg-[#2B2623] hover:bg-[#3D3632] hover:-translate-y-0.5 active:translate-y-0 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] focus-visible:ring-offset-2"
           >
             <Icons.Print />
-            <span>Print Receipt Now</span>
+            <span>Print Receipt</span>
           </button>
         </div>
       </div>

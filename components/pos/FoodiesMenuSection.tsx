@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import Image from 'next/image';
 import { MenuItem } from '../../types/pos';
 import { Icons } from '../ui/Icons';
@@ -29,41 +29,41 @@ export const FoodiesMenuSection: React.FC<FoodiesMenuSectionProps> = ({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* ACTIVE TABLE BANNER FOR ORDER ENTRY */}
-      <div className="bg-white rounded-2xl px-4 py-3 border border-stone-200 flex items-center justify-between flex-wrap gap-3 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
+      <div className="bistro-surface rounded-2xl px-6 py-5 flex items-center justify-between flex-wrap gap-4 shadow-xs">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-amber-50 text-[#B4693A] border border-amber-200/50 flex items-center justify-center flex-shrink-0">
             <Icons.TableMap />
           </div>
-          <div>
-            <span className="text-[11px] uppercase tracking-wider font-bold text-stone-400 block">
-              Step 2 &bull; Tap any dish to customize &amp; add
+          <div className="space-y-0.5">
+            <span className="text-[11px] uppercase tracking-widest font-bold text-[#B4693A] block">
+              Step 02 · Bistro Menu
             </span>
-            <span className="text-sm sm:text-base font-bold text-[#2B2623]">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-[#2B2623] tracking-tight">
               {activeTableLabel ? (
                 <>
                   Ordering for <span className="text-[#B4693A]">{activeTableLabel}</span>
                 </>
               ) : (
-                'No Table Selected — Pick a table to start ordering'
+                'Pick a table before ringing in dishes'
               )}
-            </span>
+            </h2>
           </div>
         </div>
 
         <button
           type="button"
           onClick={onChangeTable}
-          className="px-4 py-2 rounded-full bg-stone-100 hover:bg-stone-200 text-[#2B2623] text-xs font-bold transition-colors cursor-pointer min-h-[40px]"
+          className="px-5 py-3 rounded-xl bg-[#FAF6EE] hover:bg-[#EFE8DC] text-[#2B2623] text-xs font-bold transition-all duration-200 ease-in-out cursor-pointer min-h-[46px] border border-stone-200/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] focus-visible:ring-offset-2"
         >
-          {activeTableLabel ? 'Switch Table' : 'Choose Table First →'}
+          {activeTableLabel ? 'Switch Table' : 'Choose Table →'}
         </button>
       </div>
 
-      {/* Category Chips Bar with item counts */}
+      {/* Category Chips Bar */}
       <div
-        className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none"
+        className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none"
         role="tablist"
         aria-label="Menu categories"
       >
@@ -78,16 +78,16 @@ export const FoodiesMenuSection: React.FC<FoodiesMenuSectionProps> = ({
               aria-controls={`category-panel-${cat}`}
               key={cat}
               onClick={() => onSelectCategory(cat)}
-              className={`flex items-center gap-2.5 px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all cursor-pointer min-h-[48px] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#B4693A] ${
+              className={`flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-bold whitespace-nowrap transition-all duration-200 ease-in-out cursor-pointer min-h-[46px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAF6EE] ${
                 isActive
-                  ? 'bg-[#2B2623] text-white shadow-sm'
-                  : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-200'
+                  ? 'bg-[#2B2623] text-white shadow-xs'
+                  : 'bg-white text-stone-600 hover:text-[#2B2623] hover:-translate-y-0.5 border border-stone-200/60 shadow-2xs'
               }`}
             >
               <span>{cat}</span>
               <span
                 className={`text-xs px-2 py-0.5 rounded-full font-mono ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-500'
+                  isActive ? 'bg-white/15 text-white' : 'bg-[#FAF6EE] text-stone-500'
                 }`}
               >
                 {count < 10 ? `0${count}` : count}
@@ -97,12 +97,12 @@ export const FoodiesMenuSection: React.FC<FoodiesMenuSectionProps> = ({
         })}
       </div>
 
-      {/* Menu Cards Grid using Next.js Image */}
+      {/* UNIFORM, CONSISTENT FOOD CARDS GRID */}
       <div
         id={`category-panel-${selectedCategory}`}
         role="tabpanel"
         aria-label={`${selectedCategory} dishes`}
-        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5"
       >
         {filteredItems.map((item) => (
           <MenuItemCard key={item.id} item={item} onSelectDish={onSelectDish} />
@@ -112,11 +112,12 @@ export const FoodiesMenuSection: React.FC<FoodiesMenuSectionProps> = ({
   );
 };
 
-const MenuItemCard: React.FC<{ item: MenuItem; onSelectDish: (item: MenuItem) => void }> = ({
-  item,
-  onSelectDish,
-}) => {
+const MenuItemCardComponent: React.FC<{
+  item: MenuItem;
+  onSelectDish: (item: MenuItem) => void;
+}> = ({ item, onSelectDish }) => {
   const [imgError, setImgError] = useState(false);
+  const isFeatured = Boolean(item.popular);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -132,41 +133,60 @@ const MenuItemCard: React.FC<{ item: MenuItem; onSelectDish: (item: MenuItem) =>
       onClick={() => onSelectDish(item)}
       onKeyDown={handleKeyDown}
       aria-label={`Customize and add ${item.name}, $${item.price.toFixed(2)}`}
-      className="group relative bg-white rounded-3xl p-4 border border-stone-200/70 hover:border-[#B4693A] shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#B4693A]"
+      className="group relative bistro-surface bistro-surface-hover rounded-2xl p-5 sm:p-5.5 flex flex-col justify-between h-full cursor-pointer hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAF6EE]"
     >
-      <div className="flex justify-center my-1">
-        <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden p-1 border-2 border-stone-200 group-hover:border-[#B4693A] transition-colors">
+      {/* TOP TAG ROW (Guarantees identical baseline height across all cards) */}
+      <div className="flex items-center justify-between gap-2 h-6">
+        {isFeatured ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/60 text-[10px] font-bold uppercase tracking-wider">
+            ★ Favorite
+          </span>
+        ) : (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-stone-50 text-stone-500 border border-stone-200/50 text-[10px] font-semibold uppercase tracking-wider">
+            {item.subcategory}
+          </span>
+        )}
+        <span className="text-[11px] text-stone-400 font-mono">
+          {item.availableModifiers.length} mods
+        </span>
+      </div>
+
+      {/* DISH PHOTO (Uniform circle with subtle ring) */}
+      <div className="flex justify-center my-3.5">
+        <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden shadow-xs ring-4 ring-[#FAF6EE] group-hover:ring-[#B4693A]/20 transition-all duration-200 bg-stone-100 flex-shrink-0">
           {!imgError ? (
             <Image
               src={item.imageUrl}
               alt={item.name}
               fill
-              sizes="(max-width: 640px) 96px, 112px"
-              className="object-cover rounded-full p-0.5"
+              sizes="(max-width: 640px) 112px, 128px"
+              className="object-cover"
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-stone-100 rounded-full">
+            <div className="w-full h-full flex items-center justify-center bg-stone-100">
               <Icons.PlateFallback color="#B4693A" />
             </div>
           )}
         </div>
       </div>
 
-      <div className="text-center mt-2">
-        <h5 className="font-bold text-sm sm:text-base text-[#2B2623] leading-snug line-clamp-1">
+      {/* DISH TITLE & SUBCATEGORY (Standardized heights) */}
+      <div className="text-center space-y-1 my-1">
+        <h4
+          title={item.name}
+          className="font-extrabold text-base text-[#2B2623] tracking-tight leading-snug line-clamp-1 group-hover:text-[#B4693A] transition-colors"
+        >
           {item.name}
-        </h5>
-        <p className="text-xs text-stone-600 mt-0.5">{item.subcategory}</p>
-        {item.availableModifiers.length > 0 && (
-          <span className="inline-block text-[10px] text-[#B4693A] font-semibold mt-1">
-            Tap to customize &bull; {item.availableModifiers.length} options
-          </span>
-        )}
+        </h4>
+        <p className="text-xs text-stone-400 font-normal line-clamp-1">
+          {item.subcategory}
+        </p>
       </div>
 
-      <div className="flex items-center justify-between mt-3 pt-2 border-t border-stone-100">
-        <span className="font-bold text-sm sm:text-base text-[#2B2623] font-mono">
+      {/* BOTTOM ACTION ROW */}
+      <div className="flex items-center justify-between mt-4 pt-3.5 border-t border-stone-100">
+        <span className="font-extrabold text-base sm:text-lg text-[#2B2623] font-mono">
           ${item.price.toFixed(2)}
         </span>
         <button
@@ -176,11 +196,14 @@ const MenuItemCard: React.FC<{ item: MenuItem; onSelectDish: (item: MenuItem) =>
             onSelectDish(item);
           }}
           aria-label={`Customize and add ${item.name} to order ticket`}
-          className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-stone-100 group-hover:bg-[#2B2623] group-hover:text-white text-stone-800 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#B4693A]"
+          className="px-3.5 py-2 rounded-xl bg-stone-50 group-hover:bg-[#2B2623] text-stone-700 group-hover:text-white border border-stone-200/60 text-xs font-bold flex items-center gap-1.5 transition-all duration-200 ease-in-out cursor-pointer shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4693A]"
         >
           <Icons.Plus />
+          <span>Customize</span>
         </button>
       </div>
     </article>
   );
 };
+
+const MenuItemCard = memo(MenuItemCardComponent);

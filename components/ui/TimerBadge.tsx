@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { Icons } from './Icons';
 
 interface TimerBadgeProps {
   placedAt: number;
 }
 
-export const TimerBadge: React.FC<TimerBadgeProps> = ({ placedAt }) => {
+const TimerBadgeComponent: React.FC<TimerBadgeProps> = ({ placedAt }) => {
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
   useEffect(() => {
@@ -23,21 +23,23 @@ export const TimerBadge: React.FC<TimerBadgeProps> = ({ placedAt }) => {
   const seconds = elapsedSeconds % 60;
   const timeFormatted = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
 
-  let pillClasses = 'bg-stone-100 text-stone-600 border border-stone-200';
+  let pillClasses = 'bg-[#FAF6EE] text-stone-600 border border-stone-200/50';
   if (minutes >= 25) {
-    pillClasses = 'bg-red-50 text-red-700 border border-red-400 animate-flash-red font-bold';
+    pillClasses = 'bg-rose-50 text-rose-700 border border-rose-200/70 animate-flash-red font-bold';
   } else if (minutes >= 15) {
-    pillClasses = 'bg-amber-50 text-amber-800 border border-amber-300 font-semibold';
+    pillClasses = 'bg-amber-50 text-amber-800 border border-amber-200/70 font-semibold';
   }
 
   return (
     <span
       suppressHydrationWarning
       aria-label={`Elapsed time: ${minutes} minutes and ${seconds} seconds`}
-      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono tabular-nums transition-colors ${pillClasses}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono tabular-nums transition-colors duration-200 shadow-2xs ${pillClasses}`}
     >
       <Icons.Clock />
       <span suppressHydrationWarning>{timeFormatted}</span>
     </span>
   );
 };
+
+export const TimerBadge = memo(TimerBadgeComponent);
