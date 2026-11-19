@@ -940,16 +940,15 @@ export default function KitchenDashboard() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
                     {(waiterActiveTab === 'orders'
                       ? waiterSortedOrders
                       : waiterSortedOrders.slice(0, 3)
-                    ).map((order, idx) => (
+                    ).map((order) => (
                       <OrderCard
                         key={order.id}
                         order={order}
                         role={role}
-                        featured={idx === 0 && order.status === 'ready'}
                         isSelected={selectedOrderId === order.id}
                         onSelect={() => {
                           setSelectedOrderId(order.id);
